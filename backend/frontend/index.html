@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <link rel="icon" href="/favicon.ico">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deck Screenshot Viewer</title>
+    <meta name="description" content="A simple Steam Deck screenshot browser">
+    <script type="text/javascript">
+      "use strict";
+      // Check dark mode, and if not set then set it
+      if (localStorage.getItem('deck-ss-view.theme') === null) {
+        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+          localStorage.setItem('deck-ss-view.theme', 'dark');
+          // add dark mode class to html
+          document.documentElement.classList.add('dark');
+        } else {
+          localStorage.setItem('deck-ss-view.theme', 'light');
+          // remove dark mode class from html
+          document.documentElement.classList.remove('dark');
+        }
+      } else {
+        if (localStorage.getItem('deck-ss-view.theme') === 'dark') {
+          // add dark mode class to html
+          document.documentElement.classList.add('dark');
+        } else {
+          // remove dark mode class from html
+          document.documentElement.classList.remove('dark');
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
