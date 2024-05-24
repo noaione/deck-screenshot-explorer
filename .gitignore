@@ -47,6 +47,9 @@ yalc.lock
 backend/out
 backend/target/**/*
 backend/frontend/node_modules
+assets/assets/**
+defaults/assets/assets/**
+defaults/assets/assets/favicon.ico
 
 # Make sure to ignore any instance of the loader's decky_plugin.py
 decky_plugin.py

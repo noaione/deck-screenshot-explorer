@@ -78,7 +78,7 @@ async fn main() {
         .route("/", get(index))
         .route(
             "/favicon.ico",
-            get(|| async { include_bytes!("../assets/favicon.ico").to_vec() }),
+            get(|| async { include_bytes!("../../defaults/assets/favicon.ico").to_vec() }),
         )
         .route("/_/health", get(|| async { "ok" }))
         .nest("/api", routes::api_routes(state.clone()))

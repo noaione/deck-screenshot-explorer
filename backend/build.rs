@@ -99,7 +99,7 @@ fn main() {
     let dist_dir = Path::new("frontend/dist");
     is_dist_folder_built(dist_dir);
 
-    let assets_dir = Path::new(&manifest_dir).join("assets");
+    let assets_dir = Path::new(&manifest_dir).join("../defaults/assets");
     clean_assets_folder(&assets_dir);
 
     // Copy frontend/dist to root assets/
