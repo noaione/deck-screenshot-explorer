@@ -72,7 +72,13 @@ async fn main() {
         app_info,
         steam_users,
     };
-    let assets_dir = ServeDir::new("assets/assets");
+
+    let decky_plugin_dir = std::env::var("DECKY_PLUGIN_DIR");
+    tracing::info!("Decky plugin dir: {:?}", decky_plugin_dir);
+    let assets_dir = match decky_plugin_dir {
+        Ok(dir) => ServeDir::new(format!("{}/assets/assets", dir)),
+        _ => ServeDir::new("assets/assets"),
+    };
 
     let app: Router = Router::new()
         .route("/", get(index))
