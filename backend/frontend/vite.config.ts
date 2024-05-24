@@ -61,6 +61,7 @@ export default defineConfig({
     }),
     AutoImport({
       imports: ["vue", VueRouterAutoImports, unheadVueComposablesImports],
+      dirs: ["./src/composables/**"],
       dts: "./src/types/imports.d.ts",
     }),
   ],

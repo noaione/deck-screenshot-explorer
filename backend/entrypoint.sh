@@ -12,7 +12,7 @@ echo "Building Vue.js frontend view..."
 cd frontend
 
 npm ci
-npm run build
+npm run build-only
 cd ..
 
 echo "Compiling Rust backend..."

@@ -1,3 +1,32 @@
+export interface User {
+  id: number;
+  id3: number;
+  id64: number;
+  username: string;
+  displayName: string;
+  timestamp: number;
+}
+
+export interface AppInfo {
+  id: number;
+  name: string;
+  localized_name: { [key: string]: string };
+  developers: string[];
+  publishers: string[];
+}
+
+export interface Pagination {
+  total: number;
+  count: number;
+  per_page: number;
+}
+
+export interface AppInfoWithScreenshots {
+  app: AppInfo;
+  screenshots: string[];
+  pagination: Pagination;
+}
+
 export function makeUrl(url: string): string {
   const baseHost = import.meta.env.VITE_BASE_HOST;
 
