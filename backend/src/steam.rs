@@ -15,7 +15,8 @@ pub fn get_steam_root_path() -> PathBuf {
     }
     #[cfg(not(target_os = "windows"))]
     {
-        let home = std::env::var("HOME").expect("HOME env var is not set");
+        let home = std::env::var("DECKY_HOME")
+            .unwrap_or_else(|_| std::env::var("HOME").expect("HOME env var is not set"));
         PathBuf::from(format!("{}/.steam/root", home))
     }
 }
