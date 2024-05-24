@@ -1,10 +1,11 @@
 {
-  "name": "frontend",
-  "version": "0.0.0",
+  "name": "deck-screenshot-explorer-frontend",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "vite --port 5158 --host 127.0.0.1",
+    "dev:alt": "cross-env NODE_ENV=development vite --port 5159 --host 127.0.0.1",
     "build": "run-p type-check \"build-only {@}\" --",
     "preview": "vite preview",
     "build-only": "vite build",
@@ -32,6 +33,7 @@
     "@vue/eslint-config-typescript": "^13.0.0",
     "@vue/tsconfig": "^0.5.1",
     "autoprefixer": "^10.4.19",
+    "cross-env": "^7.0.3",
     "eslint": "^8.57.0",
     "eslint-plugin-promise": "^6.1.1",
     "eslint-plugin-unicorn": "^53.0.0",
