@@ -8,12 +8,15 @@ export {}
 declare module 'vue' {
   export interface GlobalComponents {
     DeckApp: typeof import('./../components/Deck/DeckApp.vue')['default']
+    DeckPaging: typeof import('./../components/Deck/DeckPaging.vue')['default']
     DeckSS: typeof import('./../components/Deck/DeckSS.vue')['default']
     DeckUser: typeof import('./../components/Deck/DeckUser.vue')['default']
     HeaderView: typeof import('./../components/HeaderView.vue')['default']
     IMdiAccountCircle: typeof import('~icons/mdi/account-circle')['default']
     IMdiApplication: typeof import('~icons/mdi/application')['default']
     IMdiArrowLeft: typeof import('~icons/mdi/arrow-left')['default']
+    IMdiChevronLeft: typeof import('~icons/mdi/chevron-left')['default']
+    IMdiChevronRight: typeof import('~icons/mdi/chevron-right')['default']
     IMdiLoading: typeof import('~icons/mdi/loading')['default']
     IMdiMonitorScreenshot: typeof import('~icons/mdi/monitor-screenshot')['default']
     IMdiWebOff: typeof import('~icons/mdi/web-off')['default']

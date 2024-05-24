@@ -28,32 +28,53 @@
           :filename="screenshot"
         />
       </div>
+      <DeckPaging v-if="pagination" :page="currentPage" :total="pagination.total" @update="updatePage" />
     </div>
   </main>
 </template>
 
 <script setup lang="ts">
-import type { AppInfo, AppInfoWithScreenshots } from "@/composables/use-backend-fetch";
+import type { AppInfo, AppInfoWithScreenshots, Pagination } from "@/composables/use-backend-fetch";
 import { watch } from "vue";
 
+const deck = useDeckStore();
 const appInfo = ref<AppInfo>();
 const availableScreenshot = ref<string[]>([]);
+const currentPage = ref(0);
+const pagination = ref<Pagination>();
 const loading = ref(true);
 const route = useRoute();
+
+async function doRequest(userId: string, appId: string) {
+  loading.value = true;
+
+  const request = await useBackendFetch<AppInfoWithScreenshots>(
+    `/users/${userId}/${appId}?page=${currentPage.value}&per_page=${deck.per_page}`
+  );
+
+  availableScreenshot.value = request.screenshots;
+  appInfo.value = request.app;
+  pagination.value = request.pagination;
+  loading.value = false;
+
+  return request;
+}
+
+async function updatePage(page: number) {
+  currentPage.value = page;
+
+  // @ts-ignore
+  await doRequest(route.params.user, route.params.app);
+}
 
 watch(
   // @ts-ignore
   () => route.params.app,
   async (newId, _) => {
-    loading.value = true;
-
     // @ts-ignore
     const userId = route.params.user;
-    const request = await useBackendFetch<AppInfoWithScreenshots>(`/users/${userId}/${newId}`);
 
-    availableScreenshot.value = request.screenshots;
-    appInfo.value = request.app;
-    loading.value = false;
+    const request = await doRequest(userId, newId);
 
     useHeadSafe({
       // @ts-ignore

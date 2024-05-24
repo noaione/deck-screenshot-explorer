@@ -17,7 +17,7 @@ export interface AppInfo {
 
 export interface Pagination {
   total: number;
-  count: number;
+  page: number;
   per_page: number;
 }
 
