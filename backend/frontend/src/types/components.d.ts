@@ -16,6 +16,7 @@ declare module 'vue' {
     IMdiArrowLeft: typeof import('~icons/mdi/arrow-left')['default']
     IMdiLoading: typeof import('~icons/mdi/loading')['default']
     IMdiMonitorScreenshot: typeof import('~icons/mdi/monitor-screenshot')['default']
+    IMdiWebOff: typeof import('~icons/mdi/web-off')['default']
     LoadingView: typeof import('./../components/LoadingView.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']

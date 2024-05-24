@@ -54,6 +54,11 @@ watch(
     availableScreenshot.value = request.screenshots;
     appInfo.value = request.app;
     loading.value = false;
+
+    useHeadSafe({
+      // @ts-ignore
+      title: `${request.app.name} :: Deck Screenshot Explorer`,
+    });
   },
   {
     immediate: true,

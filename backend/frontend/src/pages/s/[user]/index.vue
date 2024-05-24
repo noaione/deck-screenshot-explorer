@@ -23,6 +23,7 @@ const loading = ref(true);
 const route = useRoute();
 
 watch(
+  // @ts-ignore
   () => route.params.user,
   async (newId, _) => {
     loading.value = true;
@@ -36,4 +37,9 @@ watch(
     immediate: true,
   }
 );
+
+useHeadSafe({
+  // @ts-ignore
+  title: `${route.params.user} :: Deck Screenshot Explorer`,
+});
 </script>
