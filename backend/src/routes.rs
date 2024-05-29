@@ -90,7 +90,7 @@ pub async fn get_screenshot_apps(
     Path(id3): Path<u64>,
     State(state): State<SharedAppState>,
 ) -> impl IntoResponse {
-    let steam_folder = get_steam_root_path();
+    let steam_folder = dunce::canonicalize(get_steam_root_path()).unwrap();
     let user_folder = dunce::canonicalize(steam_folder.join(format!("userdata/{}", id3))).unwrap();
 
     let mut headers = HeaderMap::new();
@@ -191,7 +191,7 @@ pub async fn get_screenshot_apps(
 }
 
 fn get_screenshot_folders(id3: u64, appid: u32) -> anyhow::Result<PathBuf> {
-    let steam_folder = get_steam_root_path();
+    let steam_folder = dunce::canonicalize(get_steam_root_path()).unwrap();
     let user_folder = dunce::canonicalize(steam_folder.join(format!("userdata/{}", id3)))?;
 
     tracing::debug!("[get_screenshot_folders] user ID3: {}", id3);
@@ -378,7 +378,7 @@ pub async fn get_screenshot_file(
     let mut headers = HeaderMap::new();
     headers.insert("Content-Type", "application/json".parse().unwrap());
 
-    let steam_folders = get_steam_root_path();
+    let steam_folders = dunce::canonicalize(get_steam_root_path()).unwrap();
 
     let screenshots_folder = match get_screenshot_folders(id3, appid) {
         Ok(folder) => folder,
@@ -449,7 +449,7 @@ pub async fn get_screenshot_file_thumbnail(
     let mut headers = HeaderMap::new();
     headers.insert("Content-Type", "application/json".parse().unwrap());
 
-    let steam_folders = get_steam_root_path();
+    let steam_folders = dunce::canonicalize(get_steam_root_path()).unwrap();
 
     let screenshots_folder = match get_screenshot_folders(id3, appid) {
         Ok(folder) => folder,

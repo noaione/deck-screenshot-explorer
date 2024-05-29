@@ -41,7 +41,7 @@ async fn main() {
     let version = env!("CARGO_PKG_VERSION");
     tracing::info!("📸 Deck Screenshot Viewer v{}", version);
 
-    let steam_root = steam::get_steam_root_path();
+    let steam_root = dunce::canonicalize(steam::get_steam_root_path()).unwrap();
     tracing::info!("Steam root path: {:?}", steam_root);
 
     let app_info_path = steam_root.join("appcache/appinfo.vdf");
