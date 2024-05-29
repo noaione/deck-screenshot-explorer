@@ -96,6 +96,10 @@ pub async fn get_screenshot_apps(
     let mut headers = HeaderMap::new();
     headers.insert("Content-Type", "application/json".parse().unwrap());
 
+    tracing::debug!("[get_screenshot_apps] user ID3: {}", id3);
+    tracing::debug!("[get_screenshot_apps] steam folder: {:?}", steam_folder);
+    tracing::debug!("[get_screenshot_apps] user folder: {:?}", user_folder);
+
     // check if user_folder starts with steam_folder
     if !user_folder.starts_with(&steam_folder) {
         return (
@@ -190,6 +194,11 @@ fn get_screenshot_folders(id3: u64, appid: u32) -> anyhow::Result<PathBuf> {
     let steam_folder = get_steam_root_path();
     let user_folder = dunce::canonicalize(steam_folder.join(format!("userdata/{}", id3)))?;
 
+    tracing::debug!("[get_screenshot_folders] user ID3: {}", id3);
+    tracing::debug!("[get_screenshot_folders] app ID: {}", appid);
+    tracing::debug!("[get_screenshot_folders] steam folder: {:?}", steam_folder);
+    tracing::debug!("[get_screenshot_folders] user folder: {:?}", user_folder);
+
     // check if user_folder starts with steam_folder
     if !user_folder.starts_with(&steam_folder) {
         anyhow::bail!("Invalid user id3 provided");
@@ -200,12 +209,19 @@ fn get_screenshot_folders(id3: u64, appid: u32) -> anyhow::Result<PathBuf> {
     }
 
     let base_folder = user_folder.join("760/remote");
+    tracing::debug!("[get_screenshot_folders] base folder: {:?}", base_folder);
+
     if !base_folder.exists() {
         anyhow::bail!("Screenshot folder not found");
     }
 
     let screenshots_folder =
         dunce::canonicalize(base_folder.join(format!("{}/screenshots", appid)))?;
+
+    tracing::debug!(
+        "[get_screenshot_folders] screenshots folder: {:?}",
+        screenshots_folder
+    );
 
     // check if screenshots_folder starts with steam_folder
     if !screenshots_folder.starts_with(&steam_folder) {
