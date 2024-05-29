@@ -1,0 +1,59 @@
+name: CI
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  merge_group:
+
+env:
+  CARGO_TERM_COLOR: always
+  PKG_CONFIG_SYSROOT_DIR: /
+permissions:
+  contents: write
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@b32f140b0c872d58512e0a66172253c302617b90
+
+      - name: Rust Target
+        run: |
+          rustup update stable
+
+      - name: Setup rust cache
+        uses: Swatinem/rust-cache@640a22190e7a783d4c409684cea558f081f92012
+        with:
+          prefix-key: "${{ runner.os }}-deck-ss-explorer-build-rust"
+
+      - name: Build frontend
+        run: |
+          pushd backend/frontend
+          npm install
+          npm run build-only
+          popd
+
+      - name: Build
+        run: |
+          pushd backend
+          cargo build --release --verbose --all
+          popd
+
+      - name: Permissions (Nightly)
+        run: |
+          chmod +x backend/target/release/backend
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@ef09cdac3e2d3e60d8ccadda691f4f1cec5035cb
+        with:
+          name: deck-screenshot-explorer-linux
+          path: |
+            backend/target/release/backend
+            defaults/assets
