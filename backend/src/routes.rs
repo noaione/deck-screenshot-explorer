@@ -150,31 +150,38 @@ pub async fn get_screenshot_apps(
                 None
             }
         })
-        .map(|app_id| {
+        .filter_map(|app_id| {
             let app_id = app_id.to_string_lossy();
-            let app_id = app_id.parse::<u32>().unwrap();
+            let app_id = app_id.parse::<u32>();
+
+            // fail to parse?
+            if app_id.is_err() {
+                return None;
+            }
+
+            let app_id = app_id.unwrap();
 
             if app_id == 7 {
-                return AppInfo {
+                return Some(AppInfo {
                     id: app_id,
                     name: "Steam".to_string(),
                     ..Default::default()
-                };
+                });
             }
 
             let app = state.app_info.apps.get(&app_id);
 
             if app.is_none() {
-                return AppInfo {
+                return Some(AppInfo {
                     id: app_id,
                     name: format!("Unknown App {}", app_id),
                     ..Default::default()
-                };
+                });
             }
 
             let app = app.unwrap();
 
-            transform_app(app)
+            Some(transform_app(app))
         })
         .collect::<Vec<AppInfo>>();
 
