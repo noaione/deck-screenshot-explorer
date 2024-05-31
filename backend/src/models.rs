@@ -20,6 +20,7 @@ pub struct AppInfo {
     pub localized_name: HashMap<String, String>,
     pub developers: Vec<String>,
     pub publishers: Vec<String>,
+    pub non_steam: bool,
 }
 
 #[derive(Deserialize)]

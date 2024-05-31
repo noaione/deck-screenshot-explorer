@@ -179,7 +179,8 @@ impl App {
     }
 }
 
-fn read_kv<R: std::io::Read>(reader: &mut R, alt_format: bool) -> Result<KeyValue, VdfrError> {
+/// Read a "binary" key-value data structure from the reader.
+pub fn read_kv<R: std::io::Read>(reader: &mut R, alt_format: bool) -> Result<KeyValue, VdfrError> {
     let current_bin_end = if alt_format { BIN_END_ALT } else { BIN_END };
 
     let mut node = KeyValue::new();

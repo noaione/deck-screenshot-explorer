@@ -6,7 +6,8 @@
   >
     <div class="flex w-full items-center justify-between px-4 py-4">
       <div class="flex w-full items-center">
-        <i-mdi-application class="mr-2 h-4 w-4" />
+        <i-mdi-steam v-if="!app.non_steam" class="mr-2 h-4 w-4" />
+        <i-mdi-application v-else class="mr-2 h-4 w-4" />
         <div class="pointer-events-none text-lg font-semibold">{{ app.name }}</div>
       </div>
     </div>
@@ -14,6 +15,7 @@
   <div v-else class="flex w-full flex-col px-4 py-4">
     <div class="text-lg font-semibold">{{ app.name }}</div>
     <div class="mt-2 text-sm font-light opacity-80">{{ app.id }}</div>
+    <span v-if="app.non_steam" class="mt-1 text-sm font-light opacity-80">Non-Steam Apps</span>
     <div v-if="app.developers.length > 0" class="mt-2">
       <div class="text-sm font-semibold">Developers</div>
       <div class="flex flex-wrap gap-2">

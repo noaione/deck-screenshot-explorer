@@ -6,7 +6,7 @@ use axum::{
     routing::get,
     Router,
 };
-use steam::LoginUser;
+use steam::{LoginUser, SteamShortcut};
 use tokio::net::TcpListener;
 use tower_http::{
     cors::{Any, CorsLayer},
@@ -26,6 +26,7 @@ mod vendor;
 pub struct SharedAppState {
     pub app_info: Arc<vendor::vdfr::AppInfo>,
     pub steam_users: Arc<HashMap<u64, LoginUser>>,
+    pub users_shortcuts: Arc<HashMap<u64, HashMap<u32, SteamShortcut>>>,
 }
 
 #[tokio::main]
@@ -68,9 +69,19 @@ async fn main() {
     let steam_users = Arc::new(steam::get_steam_users(steam_root));
     tracing::info!("Loaded {} users", steam_users.len());
 
+    // load shortcuts of each users
+    let mut users_shortcuts = HashMap::new();
+    for user_id in steam_users.keys() {
+        println!(" Loading shortcuts/non-steam apps for user {}", user_id);
+        let shortcuts = steam::load_users_shortcuts(*user_id);
+        println!(" Loaded {} shortcuts/non-steam apps", shortcuts.len());
+        users_shortcuts.insert(*user_id, shortcuts);
+    }
+
     let state = SharedAppState {
         app_info,
         steam_users,
+        users_shortcuts: Arc::new(users_shortcuts),
     };
 
     let decky_plugin_dir = std::env::var("DECKY_PLUGIN_DIR");

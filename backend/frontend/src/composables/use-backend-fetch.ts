@@ -13,6 +13,7 @@ export interface AppInfo {
   localized_name: { [key: string]: string };
   developers: string[];
   publishers: string[];
+  non_steam: boolean;
 }
 
 export interface Pagination {

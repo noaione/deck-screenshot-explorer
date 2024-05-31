@@ -42,7 +42,7 @@ pub async fn get_users(State(state): State<SharedAppState>) -> impl IntoResponse
     axum::Json(wrapped_json)
 }
 
-fn transform_app(app: &crate::vendor::vdfr::App) -> AppInfo {
+fn transform_vdfr_to_app(app: &crate::vendor::vdfr::App) -> AppInfo {
     let app_name = app.app_name().unwrap();
     let mut localized_name = HashMap::new();
 
@@ -77,12 +77,27 @@ fn transform_app(app: &crate::vendor::vdfr::App) -> AppInfo {
         }
     }
 
+    // get "english" name or fallback to app name
+    let english_name = localized_name.get("english").unwrap_or(&app_name);
+
     AppInfo {
         id: app.id,
-        name: app_name,
+        name: english_name.clone(),
         localized_name: localized_name.clone(),
         developers: developers.clone(),
         publishers: publishers.clone(),
+        non_steam: false,
+    }
+}
+
+fn transform_shortcut_to_app(shortcut: &crate::steam::SteamShortcut) -> AppInfo {
+    AppInfo {
+        id: shortcut.id,
+        name: shortcut.name.clone(),
+        localized_name: HashMap::new(),
+        developers: Vec::new(),
+        publishers: Vec::new(),
+        non_steam: true,
     }
 }
 
@@ -138,6 +153,8 @@ pub async fn get_screenshot_apps(
         );
     }
 
+    let shortcuts_data = state.users_shortcuts.get(&id3).unwrap();
+
     // get all folders in the remote folder
     let apps = screenshot_apps
         .read_dir()
@@ -172,6 +189,10 @@ pub async fn get_screenshot_apps(
             let app = state.app_info.apps.get(&app_id);
 
             if app.is_none() {
+                let shortcut = shortcuts_data.get(&app_id);
+                if let Some(shortcut) = shortcut {
+                    return Some(transform_shortcut_to_app(shortcut));
+                }
                 return Some(AppInfo {
                     id: app_id,
                     name: format!("Unknown App {}", app_id),
@@ -181,7 +202,7 @@ pub async fn get_screenshot_apps(
 
             let app = app.unwrap();
 
-            Some(transform_app(app))
+            Some(transform_vdfr_to_app(app))
         })
         .collect::<Vec<AppInfo>>();
 
@@ -277,6 +298,8 @@ pub async fn get_screenshot_app(
         }
     };
 
+    let shortcuts_data = state.users_shortcuts.get(&id3).unwrap();
+
     let app_info = match state.app_info.apps.get(&appid) {
         Some(app) => {
             if app.id == 7 {
@@ -286,7 +309,7 @@ pub async fn get_screenshot_app(
                     ..Default::default()
                 }
             } else {
-                transform_app(app)
+                transform_vdfr_to_app(app)
             }
         }
         None => {
@@ -297,10 +320,15 @@ pub async fn get_screenshot_app(
                     ..Default::default()
                 }
             } else {
-                AppInfo {
-                    id: appid,
-                    name: format!("Unknown App {}", appid),
-                    ..Default::default()
+                let shortcut = shortcuts_data.get(&appid);
+                if let Some(shortcut) = shortcut {
+                    transform_shortcut_to_app(shortcut)
+                } else {
+                    AppInfo {
+                        id: appid,
+                        name: format!("Unknown App {}", appid),
+                        ..Default::default()
+                    }
                 }
             }
         }

@@ -6,6 +6,8 @@ use std::{collections::HashMap, path::PathBuf};
 
 use serde::Deserialize;
 
+use crate::vendor::vdfr::read_kv;
+
 const ID64_IDENT: u64 = 76561197960265728;
 
 pub fn get_steam_root_path() -> PathBuf {
@@ -52,6 +54,67 @@ pub fn get_steam_users(root_path: PathBuf) -> HashMap<u64, LoginUser> {
     transformed_users
 }
 
+/// A minimal representation of a Steam shortcut.
+#[derive(Clone, Debug)]
+pub struct SteamShortcut {
+    pub id: u32,
+    pub name: String,
+}
+
+pub fn load_users_shortcuts(user_id: u64) -> HashMap<u32, SteamShortcut> {
+    let shortcuts_path =
+        get_steam_root_path().join(format!("userdata/{}/config/shortcuts.vdf", user_id));
+
+    if !shortcuts_path.exists() {
+        return HashMap::new();
+    }
+
+    let mut shortcuts_reader = std::fs::File::open(shortcuts_path).unwrap();
+
+    match read_kv(&mut shortcuts_reader, false) {
+        Ok(kv) => {
+            let shortcuts = kv.get("shortcuts");
+
+            match shortcuts {
+                Some(crate::vendor::vdfr::Value::KeyValueType(shortcuts)) => {
+                    let mapped: HashMap<u32, SteamShortcut> = shortcuts
+                        .values()
+                        .filter_map(|shortcut| {
+                            if let crate::vendor::vdfr::Value::KeyValueType(shortcut) = shortcut {
+                                let id = shortcut.get("appid");
+                                if let Some(crate::vendor::vdfr::Value::Int32Type(id)) = id {
+                                    let name = shortcut.get("AppName");
+                                    if let Some(crate::vendor::vdfr::Value::StringType(name)) = name
+                                    {
+                                        let actual_id = clamp_i32_to_u24(*id);
+                                        Some((
+                                            actual_id,
+                                            SteamShortcut {
+                                                id: actual_id,
+                                                name: name.clone(),
+                                            },
+                                        ))
+                                    } else {
+                                        None
+                                    }
+                                } else {
+                                    None
+                                }
+                            } else {
+                                None
+                            }
+                        })
+                        .collect();
+
+                    mapped
+                }
+                _ => HashMap::new(),
+            }
+        }
+        Err(_) => HashMap::new(),
+    }
+}
+
 pub fn steamid64_to_steamid(steamid64: u64) -> u64 {
     let acct = steamid64 - ID64_IDENT;
     acct / 2
@@ -59,4 +122,16 @@ pub fn steamid64_to_steamid(steamid64: u64) -> u64 {
 
 pub fn steamid64_to_usteamid(steamid64: u64) -> u64 {
     steamid64 - ID64_IDENT
+}
+
+pub fn clamp_i32_to_u24(value: i32) -> u32 {
+    (value as u32) & 0x00FF_FFFF
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn test_clamp_works() {
+        assert_eq!(super::clamp_i32_to_u24(-1195449660), 12509892);
+    }
 }
