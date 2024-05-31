@@ -73,7 +73,7 @@ async fn main() {
     let mut users_shortcuts = HashMap::new();
     for user_id in steam_users.keys() {
         println!(" Loading shortcuts/non-steam apps for user {}", user_id);
-        let shortcuts = steam::load_users_shortcuts(*user_id);
+        let shortcuts = steam::load_users_shortcuts(steam::steamid64_to_usteamid(*user_id));
         println!(" Loaded {} shortcuts/non-steam apps", shortcuts.len());
         users_shortcuts.insert(*user_id, shortcuts);
     }
