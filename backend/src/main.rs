@@ -72,10 +72,14 @@ async fn main() {
     // load shortcuts of each users
     let mut users_shortcuts = HashMap::new();
     for user_id in steam_users.keys() {
-        println!(" Loading shortcuts/non-steam apps for user {}", user_id);
-        let shortcuts = steam::load_users_shortcuts(steam::steamid64_to_usteamid(*user_id));
+        let uid3 = steam::steamid64_to_usteamid(*user_id);
+        println!(
+            " Loading shortcuts/non-steam apps for user {} ({})",
+            user_id, uid3
+        );
+        let shortcuts = steam::load_users_shortcuts(steam::steamid64_to_usteamid(uid3));
         println!(" Loaded {} shortcuts/non-steam apps", shortcuts.len());
-        users_shortcuts.insert(*user_id, shortcuts);
+        users_shortcuts.insert(uid3, shortcuts);
     }
 
     let state = SharedAppState {
