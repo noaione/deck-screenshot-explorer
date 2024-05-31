@@ -77,7 +77,7 @@ async fn main() {
             " Loading shortcuts/non-steam apps for user {} ({})",
             user_id, uid3
         );
-        let shortcuts = steam::load_users_shortcuts(steam::steamid64_to_usteamid(uid3));
+        let shortcuts = steam::load_users_shortcuts(uid3);
         println!(" Loaded {} shortcuts/non-steam apps", shortcuts.len());
         users_shortcuts.insert(uid3, shortcuts);
     }
