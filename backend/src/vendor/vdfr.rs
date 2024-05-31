@@ -171,11 +171,31 @@ impl App {
     /// Get the name of the app.
     pub fn app_name(&self) -> Option<String> {
         let name = self.get(&["appinfo", "common", "name"]);
-        if let Some(Value::StringType(name)) = name {
-            Some(name.clone())
-        } else {
-            None
+        match name {
+            Some(Value::StringType(name)) => Some(name.clone()),
+            Some(Value::WideStringType(name)) => Some(name.clone()),
+            _ => None,
         }
+    }
+
+    /// Get localized name
+    pub fn localized_name(&self) -> HashMap<String, String> {
+        let mut names = HashMap::new();
+        let localized = self.get(&["appinfo", "common", "name_localized"]);
+        if let Some(Value::KeyValueType(kv)) = localized {
+            for (k, v) in kv.iter() {
+                match v {
+                    Value::StringType(v) => {
+                        names.insert(k.clone(), v.clone());
+                    }
+                    Value::WideStringType(v) => {
+                        names.insert(k.clone(), v.clone());
+                    }
+                    _ => {}
+                }
+            }
+        }
+        names
     }
 }
 

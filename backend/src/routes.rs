@@ -44,15 +44,6 @@ pub async fn get_users(State(state): State<SharedAppState>) -> impl IntoResponse
 
 fn transform_vdfr_to_app(app: &crate::vendor::vdfr::App) -> AppInfo {
     let app_name = app.app_name().unwrap();
-    let mut localized_name = HashMap::new();
-
-    if let Some(Value::KeyValueType(kv)) = app.get(&["appinfo", "common", "name_localized"]) {
-        for (k, v) in kv.iter() {
-            if let Value::StringType(v) = v {
-                localized_name.insert(k.clone(), v.clone());
-            }
-        }
-    }
 
     let mut developers = Vec::new();
     let mut publishers = Vec::new();
@@ -77,6 +68,7 @@ fn transform_vdfr_to_app(app: &crate::vendor::vdfr::App) -> AppInfo {
         }
     }
 
+    let localized_name = app.localized_name();
     // get "english" name or fallback to app name
     let english_name = localized_name.get("english").unwrap_or(&app_name);
 

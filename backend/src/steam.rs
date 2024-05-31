@@ -84,18 +84,27 @@ pub fn load_users_shortcuts(user_id: u64) -> HashMap<u32, SteamShortcut> {
                                 let id = shortcut.get("appid");
                                 if let Some(crate::vendor::vdfr::Value::Int32Type(id)) = id {
                                     let name = shortcut.get("AppName");
-                                    if let Some(crate::vendor::vdfr::Value::StringType(name)) = name
-                                    {
-                                        let actual_id = clamp_i32_to_u24(*id);
-                                        Some((
-                                            actual_id,
-                                            SteamShortcut {
-                                                id: actual_id,
-                                                name: name.clone(),
-                                            },
-                                        ))
-                                    } else {
-                                        None
+                                    let actual_id = clamp_i32_to_u24(*id);
+                                    match name {
+                                        Some(crate::vendor::vdfr::Value::StringType(name)) => {
+                                            Some((
+                                                actual_id,
+                                                SteamShortcut {
+                                                    id: actual_id,
+                                                    name: name.clone(),
+                                                },
+                                            ))
+                                        }
+                                        Some(crate::vendor::vdfr::Value::WideStringType(name)) => {
+                                            Some((
+                                                actual_id,
+                                                SteamShortcut {
+                                                    id: actual_id,
+                                                    name: name.clone(),
+                                                },
+                                            ))
+                                        }
+                                        _ => None,
                                     }
                                 } else {
                                     None
