@@ -47,8 +47,15 @@ const Content: VFC<{ serverAPI: ServerAPI }> = ({serverAPI}) => {
     }
   };
 
+  const setLastError = async () => {
+    const callState = await serverAPI.callPluginMethod<undefined, string | null | undefined>("get_error", undefined);
+    if (callState.success) {
+      setState((prevState) => ({ ...prevState, error: callState.result }));
+    }
+  }
+
   const toggleServer = async (checked: boolean) => {
-    setState((prevState) => ({ ...prevState, server_running: checked }));
+    setState((prevState) => ({ ...prevState, server_running: checked, error: null }));
 
     if (state.accepted_warning) {
       const callState = await serverAPI.callPluginMethod<{ enable: Boolean }, boolean>("start_server", {
@@ -57,11 +64,13 @@ const Content: VFC<{ serverAPI: ServerAPI }> = ({serverAPI}) => {
 
       if (callState.success) {
         setState((prevState) => ({ ...prevState, server_running: !checked }));
+        await setLastError();
       }
     } else {
       const onCancel = () => {
         setState((prevState) => ({ ...prevState, server_running: false }));
       }
+
       const onConfirm = async () => {
         const callState = await serverAPI.callPluginMethod<undefined, undefined>("set_accepted_warning", undefined);
         if (callState.success) {
