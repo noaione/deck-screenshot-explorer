@@ -1,105 +1,221 @@
 import {
   ButtonItem,
   definePlugin,
+  DialogBody,
   DialogButton,
-  Menu,
-  MenuItem,
-  Navigation,
+  DialogFooter,
+  DialogHeader,
+  Field,
+  ModalRoot,
   PanelSection,
   PanelSectionRow,
   ServerAPI,
-  showContextMenu,
+  showModal,
   staticClasses,
+  TextField,
+  ToggleField,
 } from "decky-frontend-lib";
-import { VFC } from "react";
-import { FaShip } from "react-icons/fa";
-
-import logo from "../assets/logo.png";
+import { ChangeEvent, useEffect, useState, VFC } from "react";
+import { FaServer } from "react-icons/fa";
+import { IoMdWarning } from "react-icons/io";
 
 // interface AddMethodArgs {
 //   left: number;
 //   right: number;
 // }
+interface AppState {
+  server_running: boolean;
+  ip_address: string;
+  port: number;
+  accepted_warning: boolean;
+  error?: string | null;
+}
 
 const Content: VFC<{ serverAPI: ServerAPI }> = ({serverAPI}) => {
-  // const [result, setResult] = useState<number | undefined>();
+  const [state, setState] = useState<AppState>({
+    server_running: false,
+    ip_address: "127.0.0.1",
+    port: 5158,
+    accepted_warning: false,
+    error: null,
+  });
 
-  // const onClick = async () => {
-  //   const result = await serverAPI.callPluginMethod<AddMethodArgs, number>(
-  //     "add",
-  //     {
-  //       left: 2,
-  //       right: 2,
-  //     }
-  //   );
-  //   if (result.success) {
-  //     setResult(result.result);
-  //   }
-  // };
+  const getServerStatus = async () => {
+    const callState = await serverAPI.callPluginMethod<undefined, AppState>("get_status", undefined);
+    if (callState.success) {
+      setState(callState.result);
+    }
+  };
+
+  const toggleServer = async (checked: boolean) => {
+    setState((prevState) => ({ ...prevState, server_running: checked }));
+
+    if (state.accepted_warning) {
+      const callState = await serverAPI.callPluginMethod<{ enable: Boolean }, boolean>("start_server", {
+        enable: checked,
+      });
+
+      if (callState.success) {
+        setState((prevState) => ({ ...prevState, server_running: !checked }));
+      }
+    } else {
+      const onCancel = () => {
+        setState((prevState) => ({ ...prevState, server_running: false }));
+      }
+      const onConfirm = async () => {
+        const callState = await serverAPI.callPluginMethod<undefined, undefined>("set_accepted_warning", undefined);
+        if (callState.success) {
+          setState((prevState) => ({ ...prevState, accepted_warning: true }));
+          await toggleServer(checked);
+          return;
+        }
+      }
+
+      showModal(<WarningModal onCancel={onCancel} onConfirm={onConfirm} />, window);
+    }
+  }
+
+  useEffect(() => {
+    getServerStatus();
+    const timer = setInterval(getServerStatus, 5000);
+    return () => clearInterval(timer);
+  }, []);
 
   return (
-    <PanelSection title="Panel Section">
-      <PanelSectionRow>
-        <ButtonItem
-          layout="below"
-          onClick={(e) =>
-            showContextMenu(
-              <Menu label="Menu" cancelText="CAAAANCEL" onCancel={() => {}}>
-                <MenuItem onSelected={() => {}}>Item #1</MenuItem>
-                <MenuItem onSelected={() => {}}>Item #2</MenuItem>
-                <MenuItem onSelected={() => {}}>Item #3</MenuItem>
-              </Menu>,
-              e.currentTarget ?? window
-            )
-          }
-        >
-          Server says yolo
-        </ButtonItem>
-      </PanelSectionRow>
-
-      <PanelSectionRow>
-        <div style={{ display: "flex", justifyContent: "center" }}>
-          <img src={logo} />
-        </div>
-      </PanelSectionRow>
-
-      <PanelSectionRow>
-        <ButtonItem
-          layout="below"
-          onClick={() => {
-            Navigation.CloseSideMenus();
-            Navigation.Navigate("/decky-plugin-test");
-          }}
-        >
-          Router
-        </ButtonItem>
-      </PanelSectionRow>
-    </PanelSection>
+    <>
+      <PanelSection>
+        <PanelSectionRow>
+          <ToggleField checked={state.server_running} onChange={toggleServer} label="Enable Server" />
+          {state.error ? <div>{state.error}</div> : null}
+        </PanelSectionRow>
+      </PanelSection>
+        <PanelSectionRow>
+          <ButtonItem
+            disabled={state.server_running}
+            onClick={() => showModal(
+              <SettingsPage
+                port={state.port}
+                handleSubmit={async (port) => {
+                  const callState = await serverAPI.callPluginMethod<{ port: number }, number>("set_port", { port });
+                  if (callState.success) {
+                    setState((prevState) => ({ ...prevState, port: callState.result }));
+                  }
+                }}
+              />,
+              window
+            )}
+          >
+            Settings
+          </ButtonItem>
+        </PanelSectionRow>
+      <PanelSection>
+        <PanelSectionRow>
+          <Field
+            inlineWrap="shift-children-below"
+            label="Server Address"
+            bottomSeparator="none"
+          >
+            https://steamdeck:{state.port}
+          </Field>
+          <Field inlineWrap="shift-children-below">
+            https://{state.ip_address}:{state.port}
+          </Field>
+        </PanelSectionRow>
+      </PanelSection>
+    </>
   );
 };
 
-const DeckyPluginRouterTest: VFC = () => {
+const WarningModal = ({
+  closeModal, onCancel, onConfirm
+}: {
+  closeModal?: () => void;
+  onCancel: () => void;
+  onConfirm: () => Promise<void>;
+}) => {
+  const handleCancel = () => {
+    onCancel();
+    closeModal?.();
+  };
+
+  const handleConfirm = async () => {
+    await onConfirm();
+    closeModal?.();
+  };
+
   return (
-    <div style={{ marginTop: "50px", color: "white" }}>
-      Hello World!
-      <DialogButton onClick={() => Navigation.NavigateToLibraryTab()}>
-        Go to Library
-      </DialogButton>
-    </div>
+    <ModalRoot closeModal={handleCancel}>
+      <DialogHeader>Warning</DialogHeader>
+      <DialogBody>
+        <p>Do not run this plugin on untrusted network since this expose a part of your Steam Deck to the network.</p>
+        <p>
+          Although it's limited to the screenshot folder only with a ton of safeguard in the backend code, you should still be careful.
+        </p>
+      </DialogBody>
+      <DialogFooter>
+        <DialogButton onClick={handleConfirm}>I understand</DialogButton>
+      </DialogFooter>
+    </ModalRoot>
+  )
+};
+
+const SettingsPage: VFC<{
+  closeModal?: () => void;
+  port: number;
+  handleSubmit: (port: number) => Promise<void>;
+}> = ({
+  closeModal,
+  port,
+  handleSubmit
+}) => {
+  const [statePort, setStatePort] = useState(port);
+  const [showPortError, setShowPortError] = useState(false);
+
+  const handlePortChange = (e: ChangeEvent<HTMLInputElement>) => {
+    if (isNaN(parseInt(e.currentTarget.value))) {
+      return;
+    }
+    setShowPortError(Number(parseInt(e.currentTarget.value)) < 1024);
+    setStatePort(parseInt(e.currentTarget.value));
+  };
+
+  const handleClose = () => {
+    // check port is a number between 1024-65535 before closing
+    if (statePort >= 1024 && statePort <= 65535) {
+      handleSubmit(statePort);
+      closeModal?.();
+    } else {
+      setShowPortError(true);
+    };
+  };
+
+  return (
+    <ModalRoot onCancel={handleClose}>
+      <DialogHeader>Settings</DialogHeader>
+      <DialogBody>
+        <Field label="Port" icon={showPortError ? <IoMdWarning size={20} color="red"/> : null}>
+          <TextField
+            description="Must be between 1024 and 65535"
+            style={{
+              boxSizing: "border-box",
+              width: 160,
+              height: 40,
+              border: showPortError ? '1px red solid' : undefined
+            }}
+            value={String(statePort)}
+            defaultValue={String(port)}
+            onChange={handlePortChange}
+          />
+        </Field>
+      </DialogBody>
+    </ModalRoot>
   );
 };
 
 export default definePlugin((serverApi: ServerAPI) => {
-  serverApi.routerHook.addRoute("/decky-plugin-test", DeckyPluginRouterTest, {
-    exact: true,
-  });
-
   return {
-    title: <div className={staticClasses.Title}>Example Plugin</div>,
+    title: <div className={staticClasses.Title}>Deck Screenshot Explorer</div>,
     content: <Content serverAPI={serverApi} />,
-    icon: <FaShip />,
-    onDismount() {
-      serverApi.routerHook.removeRoute("/decky-plugin-test");
-    },
+    icon: <FaServer />,
   };
 });
