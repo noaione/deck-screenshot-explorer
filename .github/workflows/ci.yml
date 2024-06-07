@@ -44,36 +44,37 @@ jobs:
           path: backend/frontend/node_modules
           key: ${{ runner.os }}-deck-ss-explorer-build-frontend-${{ hashFiles('backend/frontend/package-lock.json') }}
 
-      # - name: Build frontend
-      #   run: |
-      #     pushd backend/frontend
-      #     npm install
-      #     npm run build-only
-      #     popd
-
-      # - name: Build
-      #   run: |
-      #     pushd backend
-      #     cargo build --release --verbose --all
-      #     popd
-
       - name: Install dependencies
         run: |
           pnpm install --frozen-lockfile
 
-      - name: Prepare decky
+      - name: Build backend-frontend
         run: |
-          curl -L -o decky "https://github.com/SteamDeckHomebrew/cli/releases/latest/download/decky-linux-x86_64"
-          chmod +x decky
+          pushd backend/frontend
+          npm install
+          npm run build-only
+          popd
 
-      - name: Build
+      - name: Build backend
         run: |
-          ./decky plugin build .
-          ls -alh
+          pushd backend
+          cargo build --release --verbose --all
+          chmod +x target/release/backend
+          mkdir -p out
+          cp target/release/backend out/
+          popd
 
-      # - name: Upload artifact
-      #   uses: actions/upload-artifact@ef09cdac3e2d3e60d8ccadda691f4f1cec5035cb
-      #   with:
-      #     name: deck-screenshot-explorer
-      #     path: |
-            
+      - name: Build frontend
+        run: |
+          pnpm run build
+
+      - name: Package
+        run: |
+          python3 scripts/package-contents.py
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@ef09cdac3e2d3e60d8ccadda691f4f1cec5035cb
+        with:
+          name: deck-screenshot-explorer
+          path: |
+            deck-screenshot-explorer-v*.zip

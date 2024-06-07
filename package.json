@@ -1,7 +1,7 @@
 {
   "name": "deck-screenshot-explorer",
   "version": "0.1.0",
-  "description": "A template to quickly create decky plugins from scratch, based on TypeScript and webpack",
+  "description": "Explore your Steam Deck screenshots with ease!",
   "scripts": {
     "build": "shx rm -rf dist && rollup -c",
     "watch": "rollup -c -w",
@@ -18,7 +18,7 @@
     "steam-deck",
     "deck"
   ],
-  "author": "Jonas Dellinger <jonas@dellinger.dev>",
+  "author": "noaione <hi@n4o.xyz>",
   "license": "BSD-3-Clause",
   "bugs": {
     "url": "https://github.com/noaione/deck-screenshot-explorer/issues"
