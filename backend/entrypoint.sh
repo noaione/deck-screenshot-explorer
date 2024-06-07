@@ -18,6 +18,8 @@ cd ..
 echo "Compiling Rust backend..."
 cargo build --release --all
 
+chmod +x ./target/release/backend
+
 echo "Copying backend files to output"
 mkdir -p out
 cp ./target/release/backend ./out/backend

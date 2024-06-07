@@ -33,27 +33,47 @@ jobs:
         with:
           prefix-key: "${{ runner.os }}-deck-ss-explorer-build-rust"
 
-      - name: Build frontend
+      - name: Prepare pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 8
+
+      - name: Setup frontend cache
+        uses: actions/cache@0c45773b623bea8c8e75f6c82b208c3cf94ea4f9
+        with:
+          path: backend/frontend/node_modules
+          key: ${{ runner.os }}-deck-ss-explorer-build-frontend-${{ hashFiles('backend/frontend/package-lock.json') }}
+
+      # - name: Build frontend
+      #   run: |
+      #     pushd backend/frontend
+      #     npm install
+      #     npm run build-only
+      #     popd
+
+      # - name: Build
+      #   run: |
+      #     pushd backend
+      #     cargo build --release --verbose --all
+      #     popd
+
+      - name: Install dependencies
         run: |
-          pushd backend/frontend
-          npm install
-          npm run build-only
-          popd
+          pnpm install --frozen-lockfile
+
+      - name: Prepare decky
+        run: |
+          curl -L -o decky "https://github.com/SteamDeckHomebrew/cli/releases/latest/download/decky-linux-x86_64"
+          chmod +x decky
 
       - name: Build
         run: |
-          pushd backend
-          cargo build --release --verbose --all
-          popd
+          ./decky plugin build .
+          ls -alh
 
-      - name: Permissions (Nightly)
-        run: |
-          chmod +x backend/target/release/backend
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@ef09cdac3e2d3e60d8ccadda691f4f1cec5035cb
-        with:
-          name: deck-screenshot-explorer-linux
-          path: |
-            backend/target/release/backend
-            defaults/assets
+      # - name: Upload artifact
+      #   uses: actions/upload-artifact@ef09cdac3e2d3e60d8ccadda691f4f1cec5035cb
+      #   with:
+      #     name: deck-screenshot-explorer
+      #     path: |
+            
