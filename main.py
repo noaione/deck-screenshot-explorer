@@ -15,7 +15,7 @@ settings.read()
 
 def is_port_in_use(port: int | str) -> bool:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        return s.connect_ex(("localhost", str(port))) == 0
+        return s.connect_ex(("localhost", int(port))) == 0
 
 
 class Plugin:
@@ -36,7 +36,7 @@ class Plugin:
                 await Plugin.start_server(self, False)
                 await asyncio.sleep(1)
             except Exception as e:
-                decky_plugin.logger.error(f"Watchdog error: {e}")
+                decky_plugin.logger.error(f"Watchdog error: {e}", exc_info=e)
                 raise e
 
     async def start_server(self, enable: bool = True) -> bool:
@@ -132,7 +132,7 @@ class Plugin:
             self._watchdog_task = loop.create_task(Plugin.watchdog(self))
             decky_plugin.logger.info("deck-screenshot-explorer: plugin loaded")
         except Exception as e:
-            decky_plugin.logger.error(f"Error loading plugin: {e}")
+            decky_plugin.logger.error(f"Error loading plugin: {e}", exc_info=e)
             raise e
 
     # Function called first during the unload process, utilize this to handle your plugin being removed
