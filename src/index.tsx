@@ -16,7 +16,7 @@ import {
   ToggleField,
 } from "decky-frontend-lib";
 import { ChangeEvent, useEffect, useState, VFC } from "react";
-import { FaServer } from "react-icons/fa";
+import { FaImages } from "react-icons/fa";
 import { IoMdWarning } from "react-icons/io";
 
 // interface AddMethodArgs {
@@ -39,6 +39,7 @@ const Content: VFC<{ serverAPI: ServerAPI }> = ({serverAPI}) => {
     accepted_warning: false,
     error: null,
   });
+  const [loading, setLoading] = useState(false);
 
   const getServerStatus = async () => {
     const callState = await serverAPI.callPluginMethod<undefined, AppState>("get_status", undefined);
@@ -58,30 +59,31 @@ const Content: VFC<{ serverAPI: ServerAPI }> = ({serverAPI}) => {
     setState((prevState) => ({ ...prevState, server_running: checked, error: null }));
 
     if (state.accepted_warning) {
+      setLoading(true);
       const callState = await serverAPI.callPluginMethod<{ enable: Boolean }, boolean>("start_server", {
         enable: checked,
       });
 
       if (callState.success) {
-        setState((prevState) => ({ ...prevState, server_running: !checked }));
+        setState((prevState) => ({ ...prevState, server_running: !checked, accepted_warning: true }));
         await setLastError();
       }
-    } else {
-      const onCancel = () => {
-        setState((prevState) => ({ ...prevState, server_running: false }));
-      }
+      setLoading(false);
 
-      const onConfirm = async () => {
-        const callState = await serverAPI.callPluginMethod<undefined, undefined>("set_accepted_warning", undefined);
-        if (callState.success) {
-          setState((prevState) => ({ ...prevState, accepted_warning: true }));
-          await toggleServer(checked);
-          return;
-        }
-      }
-
-      showModal(<WarningModal onCancel={onCancel} onConfirm={onConfirm} />, window);
+      return;
     }
+
+    const onCancel = () => {
+      setState((prevState) => ({ ...prevState, server_running: false }));
+    }
+
+    const onConfirm = async () => {
+      await serverAPI.callPluginMethod<undefined, undefined>("set_accepted_warning", undefined);
+      setState((prevState) => ({ ...prevState, accepted_warning: true }));
+      await toggleServer(checked);
+    }
+
+    showModal(<WarningModal onCancel={onCancel} onConfirm={onConfirm} />, window);
   }
 
   useEffect(() => {
@@ -94,13 +96,13 @@ const Content: VFC<{ serverAPI: ServerAPI }> = ({serverAPI}) => {
     <>
       <PanelSection>
         <PanelSectionRow>
-          <ToggleField checked={state.server_running} onChange={toggleServer} label="Enable Server" />
+          <ToggleField checked={state.server_running} onChange={toggleServer} label="Enable Server" disabled={loading} />
           {state.error ? <div>{state.error}</div> : null}
         </PanelSectionRow>
       </PanelSection>
         <PanelSectionRow>
           <ButtonItem
-            disabled={state.server_running}
+            disabled={state.server_running || loading}
             onClick={() => showModal(
               <SettingsPage
                 port={state.port}
@@ -158,7 +160,8 @@ const WarningModal = ({
       <DialogBody>
         <p>Do not run this plugin on untrusted network since this expose a part of your Steam Deck to the network.</p>
         <p>
-          Although it's limited to the screenshot folder only with a ton of safeguard in the backend code, you should still be careful.
+          Although the exposed part is limited to only your screenshot folder and some extra user metadata,
+          you should still be careful to run this on a public network.
         </p>
       </DialogBody>
       <DialogFooter>
@@ -223,8 +226,8 @@ const SettingsPage: VFC<{
 
 export default definePlugin((serverApi: ServerAPI) => {
   return {
-    title: <div className={staticClasses.Title}>Deck Screenshot Explorer</div>,
+    title: <div className={staticClasses.Title}>Screenshot Explorer</div>,
     content: <Content serverAPI={serverApi} />,
-    icon: <FaServer />,
+    icon: <FaImages />,
   };
 });
