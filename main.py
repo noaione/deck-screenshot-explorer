@@ -26,15 +26,13 @@ class Plugin:
 
     async def watchdog(self):
         while True:
+            await asyncio.sleep(1)
             try:
                 if not self.backend:
-                    await asyncio.sleep(1)
                     continue
                 if self.backend.returncode is None:
-                    await asyncio.sleep(1)
                     continue
                 await Plugin.start_server(self, False)
-                await asyncio.sleep(1)
             except Exception as e:
                 decky_plugin.logger.error(f"Watchdog error: {e}", exc_info=e)
                 raise e
@@ -64,6 +62,9 @@ class Plugin:
                     env={
                         "HOST": "0.0.0.0",
                         "PORT": str(use_port),
+                        "DECKY_HOME": decky_plugin.DECKY_HOME,
+                        "DECKY_PLUGIN_DIR": decky_plugin.DECKY_PLUGIN_DIR,
+                        "HOME": decky_plugin.HOME,
                     },
                     stdout=subprocess.PIPE,
                     stderr=subprocess.STDOUT,
