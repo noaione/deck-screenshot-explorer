@@ -19,7 +19,7 @@ def is_port_in_use(port: int | str) -> bool:
 
 
 class Plugin:
-    backend: subprocess.Popen[bytes] | None = None
+    backend: asyncio.subprocess.Process | None = None
     server_running = False
     _watchdog_task = None
     error: str | None = None
@@ -30,7 +30,7 @@ class Plugin:
                 if not self.backend:
                     await asyncio.sleep(1)
                     continue
-                if self.backend.poll() is None:
+                if self.backend.returncode is None:
                     await asyncio.sleep(1)
                     continue
                 await Plugin.start_server(self, False)
@@ -59,12 +59,12 @@ class Plugin:
                     Plugin.set_error(self, "Port is already in use")
                     return False
                 decky_plugin.logger.info("start_server: Starting Rust backend...")
-                self.backend = subprocess.Popen(  # noqa: ASYNC101
-                    [
-                        "HOST=0.0.0.0",
-                        f"PORT={use_port}",
-                        f"{decky_plugin.DECKY_PLUGIN_DIR}/bin/backend",
-                    ],
+                self.backend = await asyncio.create_subprocess_shell(
+                    f"{decky_plugin.DECKY_PLUGIN_DIR}/bin/backend",
+                    env={
+                        "HOST": "0.0.0.0",
+                        "PORT": str(use_port),
+                    },
                     stdout=subprocess.PIPE,
                     stderr=subprocess.STDOUT,
                 )
@@ -75,12 +75,13 @@ class Plugin:
                 if self.backend:
                     decky_plugin.logger.info("start_server: Stopping Rust backend...")
                     self.backend.terminate()
+                    await self.backend.wait()
                     self.backend = None
                     self.server_running = False
                     decky_plugin.logger.info("start_server: Rust backend stopped")
                 return False
         except Exception as e:
-            decky_plugin.logger.error(f"Error starting/stopping server: {e}")
+            decky_plugin.logger.error(f"Error starting/stopping server: {e}", exc_info=e)
             raise e
 
     async def get_port(self) -> int:
