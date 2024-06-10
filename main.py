@@ -24,7 +24,7 @@ class Plugin:
     _watchdog_task = None
     error: str | None = None
 
-    async def _watchdog(self):
+    async def watchdog(self):
         while True:
             try:
                 if not self.backend:
@@ -33,7 +33,7 @@ class Plugin:
                 if self.backend.poll() is None:
                     await asyncio.sleep(1)
                     continue
-                await self.start_server(False)
+                await Plugin.start_server(self, False)
                 await asyncio.sleep(1)
             except Exception as e:
                 decky_plugin.logger.error(f"Watchdog error: {e}")
@@ -49,14 +49,14 @@ class Plugin:
             bool: True if the server is running, False otherwise
         """
         try:
-            self.error = None
+            Plugin.set_error(self, None)
             if enable == self.server_running:
                 decky_plugin.logger.info("start_server: Server already running")
                 return True
             if enable:
-                use_port = await self.get_port()
+                use_port = await Plugin.get_port(self)
                 if is_port_in_use(use_port):
-                    self.set_error("Port is already in use")
+                    Plugin.set_error(self, "Port is already in use")
                     return False
                 decky_plugin.logger.info("start_server: Starting Rust backend...")
                 self.backend = subprocess.Popen(  # noqa: ASYNC101
@@ -94,7 +94,7 @@ class Plugin:
     async def get_error(self) -> str | None:
         return self.error
 
-    def set_error(self, error: str) -> None:
+    def set_error(self, error: str | None) -> None:
         self.error = error
 
     async def get_accepted_warning(self) -> bool:
@@ -108,24 +108,27 @@ class Plugin:
     async def get_ip_address(self):
         return socket.gethostbyname(socket.gethostname())
 
+    async def get_server_running(self):
+        return self.server_running
+
     async def get_status(self):
         return {
-            "server_running": self.server_running,
-            "ip_address": await self.get_ip_address(),
-            "port": await self.get_port(),
-            "accepted_warning": await self.get_accepted_warning(),
-            "error": await self.get_error(),
+            "server_running": await Plugin.get_server_running(self),
+            "ip_address": await Plugin.get_ip_address(self),
+            "port": await Plugin.get_port(self),
+            "accepted_warning": await Plugin.get_accepted_warning(self),
+            "error": await Plugin.get_error(self),
         }
 
     # Asyncio-compatible long-running code, executed in a task when the plugin is loaded
     async def _main(self):
         try:
             if settings.getSetting("PORT") is None:
-                await self.set_port(5158)
+                await Plugin.set_port(self, 5158)
 
             decky_plugin.logger.info("deck-screenshot-explorer: loading plugin...")
             loop = asyncio.get_event_loop()
-            self._watchdog_task = loop.create_task(self._watchdog())
+            self._watchdog_task = loop.create_task(Plugin.watchdog(self))
             decky_plugin.logger.info("deck-screenshot-explorer: plugin loaded")
         except Exception as e:
             decky_plugin.logger.error(f"Error loading plugin: {e}")
@@ -134,7 +137,7 @@ class Plugin:
     # Function called first during the unload process, utilize this to handle your plugin being removed
     async def _unload(self):
         decky_plugin.logger.info("deck-screenshot-explorer: unloading plugin...")
-        await self.start_server(False)
+        await Plugin.start_server(self, False)
         if self._watchdog_task:
             self._watchdog_task.cancel()
         decky_plugin.logger.info("deck-screenshot-explorer: plugin unloaded")
