@@ -1,7 +1,6 @@
 import asyncio
 import os
 import socket
-import subprocess
 
 import decky_plugin  # type: ignore
 from settings import SettingsManager  # type: ignore
@@ -62,12 +61,11 @@ class Plugin:
                     env={
                         "HOST": "0.0.0.0",
                         "PORT": str(use_port),
-                        "DECKY_HOME": decky_plugin.DECKY_HOME,
                         "DECKY_PLUGIN_DIR": decky_plugin.DECKY_PLUGIN_DIR,
                         "HOME": decky_plugin.HOME,
                     },
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.STDOUT,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
                 )
                 self.server_running = True
                 decky_plugin.logger.info("start_server: Rust backend started")
