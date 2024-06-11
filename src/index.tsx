@@ -65,7 +65,7 @@ const Content: VFC<{ serverAPI: ServerAPI }> = ({serverAPI}) => {
       });
 
       if (callState.success) {
-        setState((prevState) => ({ ...prevState, server_running: !checked, accepted_warning: true }));
+        setState((prevState) => ({ ...prevState, server_running: checked, accepted_warning: true }));
         await setLastError();
       }
       setLoading(false);
