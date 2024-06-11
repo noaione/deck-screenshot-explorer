@@ -31,12 +31,31 @@ pub struct SharedAppState {
 
 #[tokio::main]
 async fn main() {
+    // fallback to current working directory
+    let decky_log_path = std::env::var("DECKY_LOG_INTO").unwrap_or_else(|_| {
+        std::env::current_dir()
+            .unwrap()
+            .to_string_lossy()
+            .to_string()
+    });
+
+    // this is folder
+    let decky_log_path = dunce::canonicalize(decky_log_path).unwrap();
+    if !decky_log_path.is_dir() {
+        tracing::error!("💥 DECKY_LOG_INTO is not a directory: {:?}", decky_log_path);
+        std::process::exit(1);
+    }
+
+    let log_file = tracing_appender::rolling::daily(decky_log_path, "backend.log");
+    let (non_blocking, _guard) = tracing_appender::non_blocking(log_file);
+
     tracing_subscriber::registry()
         .with(
             tracing_subscriber::EnvFilter::try_from_default_env()
                 .unwrap_or_else(|_| "backend=debug,tower_http=debug,axum::rejection=trace".into()),
         )
         .with(tracing_subscriber::fmt::layer())
+        .with(tracing_subscriber::fmt::layer().with_writer(non_blocking))
         .init();
 
     let version = env!("CARGO_PKG_VERSION");

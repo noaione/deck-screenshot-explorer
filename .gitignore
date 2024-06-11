@@ -62,3 +62,4 @@ cli/*
 cli/decky
 
 deck-screnshot-explorer*.zip
+backend.log*

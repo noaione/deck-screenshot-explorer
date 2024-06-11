@@ -62,6 +62,7 @@ class Plugin:
                         "HOST": "0.0.0.0",
                         "PORT": str(use_port),
                         "DECKY_PLUGIN_DIR": decky_plugin.DECKY_PLUGIN_DIR,
+                        "DECKY_LOG_INTO": decky_plugin.DECKY_PLUGIN_LOG_DIR,
                         "HOME": decky_plugin.HOME,
                     },
                     stdout=asyncio.subprocess.PIPE,
