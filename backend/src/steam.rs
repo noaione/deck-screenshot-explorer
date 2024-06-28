@@ -6,7 +6,7 @@ use std::{collections::HashMap, path::PathBuf};
 
 use serde::Deserialize;
 
-use crate::vendor::vdfr::read_kv;
+use crate::vendor::vdfr::{read_kv, KeyValueOptions};
 
 const ID64_IDENT: u64 = 76561197960265728;
 
@@ -70,7 +70,7 @@ pub fn load_users_shortcuts(user_id: u64) -> HashMap<u32, SteamShortcut> {
 
     let mut shortcuts_reader = std::fs::File::open(shortcuts_path).unwrap();
 
-    match read_kv(&mut shortcuts_reader, false) {
+    match read_kv(&mut shortcuts_reader, KeyValueOptions::default()) {
         Ok(kv) => {
             let shortcuts = kv.get("shortcuts");
 

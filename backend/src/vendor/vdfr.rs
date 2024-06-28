@@ -18,11 +18,15 @@ const BIN_UINT64: u8 = b'\x07';
 const BIN_END: u8 = b'\x08';
 const BIN_INT64: u8 = b'\x0A';
 const BIN_END_ALT: u8 = b'\x0B';
+const MAGIC_28: u32 = 0x07_56_44_28;
+const MAGIC_29: u32 = 0x07_56_44_29;
 
 #[derive(Debug)]
 pub enum VdfrError {
     InvalidType(u8),
     ReadError(std::io::Error),
+    UnknownMagic(u32),
+    InvalidStringIndex(usize, usize),
 }
 
 impl std::error::Error for VdfrError {}
@@ -31,6 +35,10 @@ impl std::fmt::Display for VdfrError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             VdfrError::InvalidType(t) => write!(f, "Invalid type {:#x}", t),
+            VdfrError::UnknownMagic(v) => write!(f, "Unknown magic {:#x}", v),
+            VdfrError::InvalidStringIndex(c, t) => {
+                write!(f, "Invalid string index {} (total {})", c, t)
+            }
             VdfrError::ReadError(e) => e.fmt(f),
         }
     }
@@ -54,11 +62,24 @@ pub enum Value {
     KeyValueType(KeyValue),
 }
 
+fn fmt_string(s: &str) -> String {
+    // escape quotes and backslashes
+    let mut escaped = String::new();
+    for c in s.chars() {
+        match c {
+            '"' => escaped.push_str("\\\""),
+            '\\' => escaped.push_str("\\\\"),
+            _ => escaped.push(c),
+        }
+    }
+    escaped
+}
+
 impl std::fmt::Debug for Value {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Value::StringType(s) => write!(f, "\"{}\"", s),
-            Value::WideStringType(s) => write!(f, "{}", s),
+            Value::StringType(s) => write!(f, "\"{}\"", fmt_string(s)),
+            Value::WideStringType(s) => write!(f, "W\"{}\"", fmt_string(s)),
             Value::Int32Type(i) => write!(f, "{}", i),
             Value::PointerType(i) => write!(f, "\"*{}\"", i),
             Value::ColorType(i) => write!(f, "{}", i),
@@ -71,6 +92,13 @@ impl std::fmt::Debug for Value {
 }
 
 type KeyValue = HashMap<String, Value>;
+
+/// Options for reading key-value data.
+#[derive(Debug, Clone, Default)]
+pub struct KeyValueOptions {
+    pub string_pool: Vec<String>,
+    pub alt_format: bool,
+}
 
 // Recursively search for the specified sequence of keys in the key-value data.
 // The order of the keys dictates the hierarchy, with all except the last having
@@ -114,9 +142,26 @@ pub struct AppInfo {
 }
 
 impl AppInfo {
-    pub fn load<R: std::io::Read>(reader: &mut R) -> Result<AppInfo, VdfrError> {
+    pub fn load<R: std::io::Read + std::io::Seek>(reader: &mut R) -> Result<AppInfo, VdfrError> {
         let version = reader.read_u32::<LittleEndian>()?;
+
+        if version != MAGIC_28 && version != MAGIC_29 {
+            return Err(VdfrError::UnknownMagic(version));
+        }
         let universe = reader.read_u32::<LittleEndian>()?;
+
+        let mut options = KeyValueOptions::default();
+
+        if version == MAGIC_29 {
+            let offset_table = reader.read_i64::<LittleEndian>()?;
+            let old_offset = reader.stream_position()?.clone();
+            reader.seek(std::io::SeekFrom::Start(offset_table as u64))?;
+            let string_count = reader.read_u32::<LittleEndian>()?;
+            options.string_pool = (0..string_count)
+                .map(|_| read_string(reader, false).unwrap())
+                .collect();
+            reader.seek(std::io::SeekFrom::Start(old_offset))?;
+        }
 
         let mut appinfo = AppInfo {
             universe,
@@ -143,7 +188,7 @@ impl AppInfo {
             let mut checksum_bin: [u8; 20] = [0; 20];
             reader.read_exact(&mut checksum_bin)?;
 
-            let key_values = read_kv(reader, false)?;
+            let key_values = read_kv(reader, options.clone())?;
 
             let app = App {
                 id: app_id,
@@ -200,8 +245,15 @@ impl App {
 }
 
 /// Read a "binary" key-value data structure from the reader.
-pub fn read_kv<R: std::io::Read>(reader: &mut R, alt_format: bool) -> Result<KeyValue, VdfrError> {
-    let current_bin_end = if alt_format { BIN_END_ALT } else { BIN_END };
+pub fn read_kv<R: std::io::Read>(
+    reader: &mut R,
+    options: KeyValueOptions,
+) -> Result<KeyValue, VdfrError> {
+    let current_bin_end = if options.alt_format {
+        BIN_END_ALT
+    } else {
+        BIN_END
+    };
 
     let mut node = KeyValue::new();
 
@@ -211,10 +263,22 @@ pub fn read_kv<R: std::io::Read>(reader: &mut R, alt_format: bool) -> Result<Key
             return Ok(node);
         }
 
-        let key = read_string(reader, false)?;
+        let key = if options.string_pool.is_empty() {
+            read_string(reader, false)?
+        } else {
+            let idx = reader.read_u32::<LittleEndian>()? as usize;
+            options
+                .string_pool
+                .get(idx)
+                .ok_or(VdfrError::InvalidStringIndex(
+                    idx,
+                    options.string_pool.len(),
+                ))?
+                .clone()
+        };
 
         if t == BIN_NONE {
-            let subnode = read_kv(reader, alt_format)?;
+            let subnode = read_kv(reader, options.clone())?;
             node.insert(key, Value::KeyValueType(subnode));
         } else if t == BIN_STRING {
             let s = read_string(reader, false)?;
