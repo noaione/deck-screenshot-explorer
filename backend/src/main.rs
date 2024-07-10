@@ -8,6 +8,7 @@ use axum::{
 };
 use steam::{LoginUser, SteamShortcut};
 use tokio::net::TcpListener;
+use tokio::signal;
 use tower_http::{
     cors::{Any, CorsLayer},
     services::ServeDir,
@@ -142,7 +143,10 @@ async fn main() {
         "🚀 Fast serving at: http://{}",
         listener.local_addr().unwrap()
     );
-    axum::serve(listener, app).await.unwrap();
+    axum::serve(listener, app)
+        .with_graceful_shutdown(shutdown_signal())
+        .await
+        .unwrap();
 }
 
 async fn handle_404(url: Uri) -> Redirect {
@@ -155,4 +159,32 @@ async fn handle_404(url: Uri) -> Redirect {
 
 async fn index() -> impl IntoResponse {
     Html(INDEX_HTML)
+}
+
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        signal::ctrl_c()
+            .await
+            .expect("Failed to install CTRL+C signal handler");
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        signal::unix::signal(signal::unix::SignalKind::terminate())
+            .expect("Failed to install SIGTERM signal handler")
+            .recv()
+            .await
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>(); // stub!
+
+    tokio::select! {
+        _ = ctrl_c => {
+            tracing::info!("Received Ctrl-C, shutting down...");
+        }
+        _ = terminate => {
+            tracing::info!("Received SIGTERM, shutting down...");
+        }
+    }
 }
