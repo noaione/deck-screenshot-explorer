@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use nom::{
     bytes::complete::{take, take_until},
     multi::{count, many0},
-    number::complete::{le_f32, le_i32, le_i64, le_u16, le_u32, le_u64, le_u8},
+    number::complete::{be_u16, le_f32, le_i32, le_i64, le_u16, le_u32, le_u64, le_u8},
     sequence::tuple,
     IResult,
 };
@@ -418,14 +418,43 @@ fn parse_utf8(input: &[u8]) -> IResult<&[u8], String> {
     Ok((rest, s.to_string()))
 }
 
+enum Endian {
+    Be,
+    Le,
+}
+
 fn parse_utf16(input: &[u8]) -> IResult<&[u8], String> {
     // Parse until NULL byte
     let (rest, buf) = take_until("\0\0")(input)?;
+    // Check if BOM is preset, if not assume BE
+    let (buf, bom) = if buf.len() >= 2 {
+        // Skip BOM
+        let big_endian = buf[0] == 0xFE && buf[1] == 0xFF;
+        let little_endian = buf[0] == 0xFF && buf[1] == 0xFE;
+
+        match (big_endian, little_endian) {
+            (true, false) => (&buf[2..], Endian::Be),
+            (false, true) => (&buf[2..], Endian::Le),
+            _ => (buf, Endian::Be),
+        }
+    } else {
+        (buf, Endian::Be)
+    };
+
     // Consume NULL byte
-    let (rest, _) = le_u16(rest)?;
-    let mut v = vec![];
+    let (rest, _) = match bom {
+        Endian::Be => be_u16(rest)?,
+        Endian::Le => le_u16(rest)?,
+    };
+
+    let mut v: Vec<u16> = vec![];
     for i in 0..buf.len() / 2 {
-        v.push(u16::from_le_bytes([buf[i * 2], buf[i * 2 + 1]]));
+        let temp_buf = [buf[i * 2], buf[i * 2 + 1]];
+        let c = match bom {
+            Endian::Be => u16::from_be_bytes(temp_buf),
+            Endian::Le => u16::from_le_bytes(temp_buf),
+        };
+        v.push(c);
     }
     v.push(0); // Add NULL terminator
     let s = std::string::String::from_utf16_lossy(&v);
