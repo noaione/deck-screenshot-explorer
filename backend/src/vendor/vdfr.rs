@@ -1,11 +1,17 @@
 //! Valve Data Format (also known as Key-Values) Reader
 //!
-//! This is vendored from https://github.com/drguildo/vdfr
-//! with some modifications.
+//! This is heavily modified version from https://github.com/drguildo/vdfr
+//! Originally written using byteorder, this implementation use nom for parsing.
 
-use std::{collections::HashMap, io::Error};
+use std::collections::HashMap;
 
-use byteorder::{LittleEndian, ReadBytesExt};
+use nom::{
+    bytes::complete::{take, take_until},
+    multi::{count, many0},
+    number::complete::{le_f32, le_i32, le_i64, le_u16, le_u32, le_u64, le_u8},
+    sequence::tuple,
+    IResult,
+};
 
 const BIN_NONE: u8 = b'\x00';
 const BIN_STRING: u8 = b'\x01';
@@ -18,7 +24,12 @@ const BIN_UINT64: u8 = b'\x07';
 const BIN_END: u8 = b'\x08';
 const BIN_INT64: u8 = b'\x0A';
 const BIN_END_ALT: u8 = b'\x0B';
+
+// Before Dec 2022
+const MAGIC_27: u32 = 0x07_56_44_27;
+// Before June 2024, added checksum_bin
 const MAGIC_28: u32 = 0x07_56_44_28;
+// Latest, storage optimization with string pools
 const MAGIC_29: u32 = 0x07_56_44_29;
 
 #[derive(Debug)]
@@ -26,6 +37,7 @@ pub enum VdfrError {
     InvalidType(u8),
     ReadError(std::io::Error),
     UnknownMagic(u32),
+    NomError(String),
     InvalidStringIndex(usize, usize),
 }
 
@@ -40,6 +52,7 @@ impl std::fmt::Display for VdfrError {
                 write!(f, "Invalid string index {} (total {})", c, t)
             }
             VdfrError::ReadError(e) => e.fmt(f),
+            VdfrError::NomError(e) => write!(f, "Nom error: {}", e),
         }
     }
 }
@@ -91,6 +104,20 @@ impl std::fmt::Debug for Value {
     }
 }
 
+fn throw_error(error: nom::Err<nom::error::Error<&[u8]>>) -> VdfrError {
+    // clone the error to avoid lifetime issues
+    match error {
+        nom::Err::Error(e) | nom::Err::Failure(e) => {
+            // get like 64 bytes of data to show in the error message
+            let data = e.input;
+            let data = if data.len() > 64 { &data[..64] } else { data };
+
+            VdfrError::NomError(format!("Error: {:?}, data: {:?}", e.code, data))
+        }
+        nom::Err::Incomplete(e) => VdfrError::NomError(format!("Incomplete data, need: {:?}", e)),
+    }
+}
+
 type KeyValue = HashMap<String, Value>;
 
 /// Options for reading key-value data.
@@ -129,7 +156,7 @@ pub struct App {
     pub last_update: u32,
     pub access_token: u64,
     pub checksum_txt: [u8; 20],
-    pub checksum_bin: [u8; 20],
+    pub checksum_bin: Option<[u8; 20]>,
     pub change_number: u32,
     pub key_values: KeyValue,
 }
@@ -142,69 +169,47 @@ pub struct AppInfo {
 }
 
 impl AppInfo {
-    pub fn load<R: std::io::Read + std::io::Seek>(reader: &mut R) -> Result<AppInfo, VdfrError> {
-        let version = reader.read_u32::<LittleEndian>()?;
+    pub fn load(data: &[u8]) -> Result<AppInfo, VdfrError> {
+        let (data, (version, universe)) = tuple((le_u32, le_u32))(data).map_err(throw_error)?;
 
-        if version != MAGIC_28 && version != MAGIC_29 {
-            return Err(VdfrError::UnknownMagic(version));
-        }
-        let universe = reader.read_u32::<LittleEndian>()?;
+        let (payloads, options) = match version {
+            MAGIC_27 | MAGIC_28 => (data, KeyValueOptions::default()),
+            MAGIC_29 => {
+                let (data, offset) = le_i64(data).map_err(throw_error)?;
 
-        let mut options = KeyValueOptions::default();
+                // Use nom to jump to offset_table and read the string pool
+                // data is the remaining data after reading version, universe, and offset.
+                // to ensure we actually jump to the offset, we need to subtract the amount of data read so far.
+                let read_amount = 4usize + 4 + 8;
+                let offset_actual = (offset as usize) - read_amount;
+                // Left side, is the remainder which is the string pools, while payload is the actual data.
+                let (string_pools, payload) = take(offset_actual)(data).map_err(throw_error)?;
+                let (string_pools, count) = le_u32(string_pools).map_err(throw_error)?;
 
-        if version == MAGIC_29 {
-            let offset_table = reader.read_i64::<LittleEndian>()?;
-            let old_offset = reader.stream_position()?.clone();
-            reader.seek(std::io::SeekFrom::Start(offset_table as u64))?;
-            let string_count = reader.read_u32::<LittleEndian>()?;
-            options.string_pool = (0..string_count)
-                .map(|_| read_string(reader, false).unwrap())
-                .collect();
-            reader.seek(std::io::SeekFrom::Start(old_offset))?;
-        }
+                let (_, string_pool) =
+                    read_string_pools(string_pools, count as usize).map_err(throw_error)?;
 
-        let mut appinfo = AppInfo {
-            universe,
-            version,
-            apps: HashMap::new(),
+                (
+                    payload,
+                    KeyValueOptions {
+                        string_pool,
+                        alt_format: false,
+                    },
+                )
+            }
+            _ => return Err(VdfrError::UnknownMagic(version)),
         };
 
-        loop {
-            let app_id = reader.read_u32::<LittleEndian>()?;
-            if app_id == 0 {
-                break;
-            }
+        let (_, mut apps) = parse_apps(payloads, &options, version).map_err(throw_error)?;
 
-            let size = reader.read_u32::<LittleEndian>()?;
-            let state = reader.read_u32::<LittleEndian>()?;
-            let last_update = reader.read_u32::<LittleEndian>()?;
-            let access_token = reader.read_u64::<LittleEndian>()?;
+        // Pop app 0
+        apps.remove(&0);
 
-            let mut checksum_txt: [u8; 20] = [0; 20];
-            reader.read_exact(&mut checksum_txt)?;
-
-            let change_number = reader.read_u32::<LittleEndian>()?;
-
-            let mut checksum_bin: [u8; 20] = [0; 20];
-            reader.read_exact(&mut checksum_bin)?;
-
-            let key_values = read_kv(reader, options.clone())?;
-
-            let app = App {
-                id: app_id,
-                size,
-                state,
-                last_update,
-                access_token,
-                checksum_txt,
-                checksum_bin,
-                change_number,
-                key_values,
-            };
-            appinfo.apps.insert(app_id, app);
-        }
-
-        Ok(appinfo)
+        Ok(AppInfo {
+            version,
+            universe,
+            apps,
+        })
     }
 }
 
@@ -244,12 +249,84 @@ impl App {
     }
 }
 
-/// Read a "binary" key-value data structure from the reader.
-pub fn read_kv<R: std::io::Read>(
-    reader: &mut R,
-    options: KeyValueOptions,
-) -> Result<KeyValue, VdfrError> {
-    let current_bin_end = if options.alt_format {
+fn parse_apps<'a>(
+    data: &'a [u8],
+    options: &'a KeyValueOptions,
+    version: u32,
+) -> IResult<&'a [u8], HashMap<u32, App>> {
+    let (rest, apps) = many0(|d| parse_app(d, options, version))(data)?;
+
+    let hash_apps: HashMap<u32, App> = apps.into_iter().map(|app| (app.id, app)).collect();
+
+    Ok((rest, hash_apps))
+}
+
+fn parse_app<'a>(
+    data: &'a [u8],
+    options: &'a KeyValueOptions,
+    version: u32,
+) -> IResult<&'a [u8], App> {
+    let (data, app_id) = le_u32(data)?;
+
+    if app_id == 0 {
+        // End of apps, return empty app
+        Ok((
+            data,
+            App {
+                id: 0,
+                size: 0,
+                state: 0,
+                last_update: 0,
+                access_token: 0,
+                checksum_txt: [0; 20],
+                checksum_bin: Some([0; 20]),
+                change_number: 0,
+                key_values: HashMap::new(),
+            },
+        ))
+    } else {
+        let (data, (size, state, last_update, access_token)) =
+            tuple((le_u32, le_u32, le_u32, le_u64))(data)?;
+
+        let (data, checksum_txt) = take(20usize)(data)?;
+        let (data, change_number) = le_u32(data)?;
+        let (data, checksum_bin) = match version {
+            MAGIC_27 => {
+                // we skip checksum_bin
+                (data, None)
+            }
+            _ => {
+                let (data, checksum_bin) = take(20usize)(data)?;
+                (data, Some(checksum_bin.try_into().unwrap()))
+            }
+        };
+
+        let (data, key_values) = parse_bytes_kv(data, options)?;
+
+        Ok((
+            data,
+            App {
+                id: app_id,
+                size,
+                state,
+                last_update,
+                access_token,
+                checksum_txt: checksum_txt.try_into().unwrap(),
+                checksum_bin,
+                change_number,
+                key_values,
+            },
+        ))
+    }
+}
+
+pub fn parse_keyvalues(data: &[u8]) -> Result<KeyValue, VdfrError> {
+    let (_, key_values) = parse_bytes_kv(data, &KeyValueOptions::default()).map_err(throw_error)?;
+    Ok(key_values)
+}
+
+fn parse_bytes_kv<'a>(data: &'a [u8], options: &'a KeyValueOptions) -> IResult<&'a [u8], KeyValue> {
+    let bin_end = if options.alt_format {
         BIN_END_ALT
     } else {
         BIN_END
@@ -257,80 +334,100 @@ pub fn read_kv<R: std::io::Read>(
 
     let mut node = KeyValue::new();
 
+    let mut data = data;
     loop {
-        let t = reader.read_u8()?;
-        if t == current_bin_end {
-            return Ok(node);
+        let (res, bin) = le_u8(data)?;
+
+        if bin == bin_end {
+            return Ok((res, node));
         }
 
-        let key = if options.string_pool.is_empty() {
-            read_string(reader, false)?
+        let (res, key) = if options.string_pool.is_empty() {
+            parse_utf8(res)?
         } else {
-            let idx = reader.read_u32::<LittleEndian>()? as usize;
-            options
-                .string_pool
-                .get(idx)
-                .ok_or(VdfrError::InvalidStringIndex(
-                    idx,
-                    options.string_pool.len(),
-                ))?
-                .clone()
+            let (res, index) = le_u32(res)?;
+            let index = index as usize;
+            if index >= options.string_pool.len() {
+                return Err(nom::Err::Error(nom::error::Error::new(
+                    res,
+                    nom::error::ErrorKind::Eof,
+                )));
+            }
+            (res, options.string_pool[index].clone())
         };
 
-        if t == BIN_NONE {
-            let subnode = read_kv(reader, options.clone())?;
-            node.insert(key, Value::KeyValueType(subnode));
-        } else if t == BIN_STRING {
-            let s = read_string(reader, false)?;
-            node.insert(key, Value::StringType(s));
-        } else if t == BIN_WIDESTRING {
-            let s = read_string(reader, true)?;
-            node.insert(key, Value::WideStringType(s));
-        } else if [BIN_INT32, BIN_POINTER, BIN_COLOR].contains(&t) {
-            let val = reader.read_i32::<LittleEndian>()?;
-            if t == BIN_INT32 {
-                node.insert(key, Value::Int32Type(val));
-            } else if t == BIN_POINTER {
-                node.insert(key, Value::PointerType(val));
-            } else if t == BIN_COLOR {
-                node.insert(key, Value::ColorType(val));
+        let (res, value) = match bin {
+            BIN_NONE => {
+                let (res, subnode) = parse_bytes_kv(res, options)?;
+                (res, Value::KeyValueType(subnode))
             }
-        } else if t == BIN_UINT64 {
-            let val = reader.read_u64::<LittleEndian>()?;
-            node.insert(key, Value::UInt64Type(val));
-        } else if t == BIN_INT64 {
-            let val = reader.read_i64::<LittleEndian>()?;
-            node.insert(key, Value::Int64Type(val));
-        } else if t == BIN_FLOAT32 {
-            let val = reader.read_f32::<LittleEndian>()?;
-            node.insert(key, Value::Float32Type(val));
-        } else {
-            return Err(VdfrError::InvalidType(t));
-        }
+            BIN_STRING => {
+                let (res, value) = parse_utf8(res)?;
+                (res, Value::StringType(value))
+            }
+            BIN_WIDESTRING => {
+                let (res, value) = parse_utf16(res)?;
+                (res, Value::WideStringType(value))
+            }
+            BIN_INT32 | BIN_POINTER | BIN_COLOR => {
+                let (res, value) = le_i32(res)?;
+                let value = match bin {
+                    BIN_INT32 => Value::Int32Type(value),
+                    BIN_POINTER => Value::PointerType(value),
+                    BIN_COLOR => Value::ColorType(value),
+                    _ => unreachable!(),
+                };
+                (res, value)
+            }
+            BIN_UINT64 => {
+                let (res, value) = le_u64(res)?;
+                (res, Value::UInt64Type(value))
+            }
+            BIN_INT64 => {
+                let (res, value) = le_i64(res)?;
+                (res, Value::Int64Type(value))
+            }
+            BIN_FLOAT32 => {
+                let (res, value) = le_f32(res)?;
+                (res, Value::Float32Type(value))
+            }
+            _ => {
+                return Err(nom::Err::Error(nom::error::Error::new(
+                    res,
+                    nom::error::ErrorKind::Char,
+                )));
+            }
+        };
+
+        node.insert(key, value);
+        data = res;
     }
 }
 
-fn read_string<R: std::io::Read>(reader: &mut R, wide: bool) -> Result<String, Error> {
-    if wide {
-        let mut buf: Vec<u16> = vec![];
-        loop {
-            // Maybe this should be big-endian?
-            let c = reader.read_u16::<LittleEndian>()?;
-            if c == 0 {
-                break;
-            }
-            buf.push(c);
-        }
-        return Ok(std::string::String::from_utf16_lossy(&buf).to_string());
-    } else {
-        let mut buf: Vec<u8> = vec![];
-        loop {
-            let c = reader.read_u8()?;
-            if c == 0 {
-                break;
-            }
-            buf.push(c);
-        }
-        return Ok(std::string::String::from_utf8_lossy(&buf).to_string());
+fn read_string_pools(data: &[u8], amount: usize) -> IResult<&[u8], Vec<String>> {
+    count(parse_utf8, amount)(data)
+}
+
+fn parse_utf8(input: &[u8]) -> IResult<&[u8], String> {
+    // Parse until NULL byte
+    let (rest, buf) = take_until("\0")(input)?;
+    let (rest, _) = le_u8(rest)?; // Skip NULL byte
+                                  // add null byte to the end of the string
+    let s = std::str::from_utf8(buf)
+        .map_err(|_| nom::Err::Error(nom::error::Error::new(rest, nom::error::ErrorKind::Char)))?;
+    Ok((rest, s.to_string()))
+}
+
+fn parse_utf16(input: &[u8]) -> IResult<&[u8], String> {
+    // Parse until NULL byte
+    let (rest, buf) = take_until("\0\0")(input)?;
+    // Consume NULL byte
+    let (rest, _) = le_u16(rest)?;
+    let mut v = vec![];
+    for i in 0..buf.len() / 2 {
+        v.push(u16::from_le_bytes([buf[i * 2], buf[i * 2 + 1]]));
     }
+    v.push(0); // Add NULL terminator
+    let s = std::string::String::from_utf16_lossy(&v);
+    Ok((rest, s))
 }

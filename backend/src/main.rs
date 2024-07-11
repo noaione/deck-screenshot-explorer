@@ -72,8 +72,8 @@ async fn main() {
     }
 
     tracing::info!("Loading appinfo.vdf from {:?}", app_info_path);
-    let mut app_info_reader = std::fs::File::open(app_info_path).unwrap();
-    let app_info = match vendor::vdfr::AppInfo::load(&mut app_info_reader) {
+    let app_info_reader = std::fs::read(app_info_path).unwrap();
+    let app_info = match vendor::vdfr::AppInfo::load(&app_info_reader) {
         Ok(app_info) => app_info,
         Err(e) => {
             tracing::error!("💥 Failed to load appinfo.vdf: {}", e);
