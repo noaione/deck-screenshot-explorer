@@ -36,6 +36,31 @@ class Plugin:
                 decky_plugin.logger.error(f"Watchdog error: {e}", exc_info=e)
                 raise e
 
+    async def kill_server(self) -> None:
+        """Kill the Rust backend server
+
+        Okay, okay, okay, let's kill backend, let's kill this backend, let's beat him to death with a SIGKILL.
+        """
+
+        if self.backend:
+            decky_plugin.logger.info("kill_server: Stopping Rust backend...")
+            self.backend.terminate()
+            kill_this_man = False
+            try:
+                asyncio.wait_for(self.backend.wait(), timeout=10.0)
+            except asyncio.TimeoutError:
+                decky_plugin.logger.error("kill_server: Rust backend did not stop in time, killing it")
+                kill_this_man = True
+            if kill_this_man and self.backend.returncode is None:
+                self.backend.kill()
+                try:
+                    asyncio.wait_for(self.backend.wait(), timeout=10.0)
+                except asyncio.TimeoutError:
+                    decky_plugin.logger.error("kill_server: Rust backend is not responding, giving up")
+            self.backend = None
+            self.server_running = False
+            decky_plugin.logger.info("kill_server: Rust backend stopped")
+
     async def start_server(self, enable: bool = True) -> bool:
         """Start or stop the Rust backend server
 
@@ -72,13 +97,7 @@ class Plugin:
                 decky_plugin.logger.info("start_server: Rust backend started")
                 return True
             else:
-                if self.backend:
-                    decky_plugin.logger.info("start_server: Stopping Rust backend...")
-                    self.backend.terminate()
-                    await self.backend.wait()
-                    self.backend = None
-                    self.server_running = False
-                    decky_plugin.logger.info("start_server: Rust backend stopped")
+                await Plugin.kill_server(self)
                 return False
         except Exception as e:
             decky_plugin.logger.error(f"Error starting/stopping server: {e}", exc_info=e)

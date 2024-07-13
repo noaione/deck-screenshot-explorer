@@ -412,7 +412,6 @@ fn parse_utf8(input: &[u8]) -> IResult<&[u8], String> {
     // Parse until NULL byte
     let (rest, buf) = take_until("\0")(input)?;
     let (rest, _) = le_u8(rest)?; // Skip NULL byte
-                                  // add null byte to the end of the string
     let s = std::str::from_utf8(buf)
         .map_err(|_| nom::Err::Error(nom::error::Error::new(rest, nom::error::ErrorKind::Char)))?;
     Ok((rest, s.to_string()))
@@ -428,16 +427,18 @@ fn parse_utf16(input: &[u8]) -> IResult<&[u8], String> {
     let (rest, buf) = take_until("\0\0")(input)?;
     // Check if BOM is preset, if not assume BE
     let (buf, bom) = if buf.len() >= 2 {
-        // Skip BOM
+        // Has BOM, check if LE or BE
         let big_endian = buf[0] == 0xFE && buf[1] == 0xFF;
         let little_endian = buf[0] == 0xFF && buf[1] == 0xFE;
 
         match (big_endian, little_endian) {
+            // If BE/LE, skip BOM bytes and set endianness
             (true, false) => (&buf[2..], Endian::Be),
             (false, true) => (&buf[2..], Endian::Le),
             _ => (buf, Endian::Be),
         }
     } else {
+        // No BOM, assume BE
         (buf, Endian::Be)
     };
 

@@ -1,7 +1,7 @@
 {
   "name": "Deck Screenshot Explorer",
   "author": "noaoine",
-  "flags": ["debug", "_root"],
+  "flags": ["_root"],
   "publish": {
     "tags": ["root"],
     "description": "Explore your Steam Deck screenshots with ease!",
