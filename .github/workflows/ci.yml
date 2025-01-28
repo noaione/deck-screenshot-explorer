@@ -22,14 +22,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repo
-        uses: actions/checkout@b32f140b0c872d58512e0a66172253c302617b90
+        uses: actions/checkout@85e6279cec87321a52edac9c87bce653a07cf6c2
 
       - name: Rust Target
         run: |
           rustup update stable
 
       - name: Setup rust cache
-        uses: Swatinem/rust-cache@640a22190e7a783d4c409684cea558f081f92012
+        uses: Swatinem/rust-cache@f0deed1e0edfc6a9be95417288c0e1099b1eeec3
         with:
           prefix-key: "${{ runner.os }}-deck-ss-explorer-build-rust"
 
@@ -39,7 +39,7 @@ jobs:
           version: 8
 
       - name: Setup frontend cache
-        uses: actions/cache@0c45773b623bea8c8e75f6c82b208c3cf94ea4f9
+        uses: actions/cache@36f1e144e1c8edb0a652766b484448563d8baf46
         with:
           path: backend/frontend/node_modules
           key: ${{ runner.os }}-deck-ss-explorer-build-frontend-${{ hashFiles('backend/frontend/package-lock.json') }}
@@ -73,7 +73,7 @@ jobs:
           python3 scripts/package-contents.py
 
       - name: Upload artifact
-        uses: actions/upload-artifact@ef09cdac3e2d3e60d8ccadda691f4f1cec5035cb
+        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08
         with:
           name: deck-screenshot-explorer
           path: |
