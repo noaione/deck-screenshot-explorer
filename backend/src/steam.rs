@@ -165,5 +165,8 @@ mod tests {
     #[test]
     fn test_clamp_works() {
         assert_eq!(super::clamp_i32_to_u24(-1195449660), 12509892);
+        assert_eq!(super::clamp_i32_to_u24(-842040285), 13597731);
+        assert_eq!(super::clamp_i32_to_u24(-1898721726), 13880898);
+        assert_eq!(super::clamp_i32_to_u24(-206961428), 11142380);
     }
 }
