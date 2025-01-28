@@ -61,6 +61,32 @@ class Plugin:
             self.server_running = False
             decky_plugin.logger.info("kill_server: Rust backend stopped")
 
+    async def force_kill(self) -> None:
+        # Find backend processes and kill them
+        decky_plugin.logger.info("force_kill: Finding backend processes...")
+        # Ensure that the filepath is f"{decky_plugin.DECKY_PLUGIN_DIR}/bin/backend",
+        # so that we don't kill the wrong process
+        processes = await asyncio.create_subprocess_shell(
+            f"pgrep -f {decky_plugin.DECKY_PLUGIN_DIR}/bin/backend",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        stdout, stderr = await processes.communicate()
+        if stderr:
+            decky_plugin.logger.error(f"force_kill: {stderr.decode()}")
+        if stdout:
+            # Get the first line of the output
+            pid = stdout.decode().split("\n")[0]
+            # Kill the process
+            decky_plugin.logger.info("force_kill: Killing backend process...")
+            # Send kill -9 to the process
+            await asyncio.create_subprocess_shell(
+                f"kill -9 {pid}",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            decky_plugin.logger.info("force_kill: Backend process killed")
+
     async def start_server(self, enable: bool = True) -> bool:
         """Start or stop the Rust backend server
 

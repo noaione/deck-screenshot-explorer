@@ -40,6 +40,7 @@ const Content: VFC<{ serverAPI: ServerAPI }> = ({serverAPI}) => {
     error: null,
   });
   const [loading, setLoading] = useState(false);
+  const [killing, setKilling] = useState(false);
 
   const getServerStatus = async () => {
     const callState = await serverAPI.callPluginMethod<undefined, AppState>("get_status", undefined);
@@ -52,6 +53,17 @@ const Content: VFC<{ serverAPI: ServerAPI }> = ({serverAPI}) => {
     const callState = await serverAPI.callPluginMethod<undefined, string | null | undefined>("get_error", undefined);
     if (callState.success) {
       setState((prevState) => ({ ...prevState, error: callState.result }));
+    }
+  }
+
+  const forceKillServer = async () => {
+    setKilling(true);
+    try {
+      await serverAPI.callPluginMethod<undefined, undefined>("force_kill", undefined);
+    } catch (_error) {
+      console.error(_error);
+    } finally {
+      setKilling(false);
     }
   }
 
@@ -100,25 +112,33 @@ const Content: VFC<{ serverAPI: ServerAPI }> = ({serverAPI}) => {
           {state.error ? <div>{state.error}</div> : null}
         </PanelSectionRow>
       </PanelSection>
-        <PanelSectionRow>
-          <ButtonItem
-            disabled={state.server_running || loading}
-            onClick={() => showModal(
-              <SettingsPage
-                port={state.port}
-                handleSubmit={async (port) => {
-                  const callState = await serverAPI.callPluginMethod<{ port: number }, number>("set_port", { port });
-                  if (callState.success) {
-                    setState((prevState) => ({ ...prevState, port: callState.result }));
-                  }
-                }}
-              />,
-              window
-            )}
-          >
-            Settings
-          </ButtonItem>
-        </PanelSectionRow>
+      <PanelSectionRow>
+        <ButtonItem
+          disabled={state.server_running || loading}
+          onClick={() => showModal(
+            <SettingsPage
+              port={state.port}
+              handleSubmit={async (port) => {
+                const callState = await serverAPI.callPluginMethod<{ port: number }, number>("set_port", { port });
+                if (callState.success) {
+                  setState((prevState) => ({ ...prevState, port: callState.result }));
+                }
+              }}
+            />,
+            window
+          )}
+        >
+          Settings
+        </ButtonItem>
+      </PanelSectionRow>
+      <PanelSectionRow>
+        <ButtonItem
+          disabled={loading || killing}
+          onClick={forceKillServer}
+        >
+          Force Kill
+        </ButtonItem>
+      </PanelSectionRow>
       <PanelSection>
         <PanelSectionRow>
           <Field
