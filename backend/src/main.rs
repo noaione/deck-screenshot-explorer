@@ -21,11 +21,10 @@ include!(concat!(env!("OUT_DIR"), "/index_html.rs"));
 mod models;
 mod routes;
 mod steam;
-mod vendor;
 
 #[derive(Clone)]
 pub struct SharedAppState {
-    pub app_info: Arc<vendor::vdfr::AppInfo>,
+    pub app_info: Arc<vdfr::AppInfo>,
     pub steam_users: Arc<HashMap<u64, LoginUser>>,
     pub users_shortcuts: Arc<HashMap<u64, HashMap<u32, SteamShortcut>>>,
 }
@@ -73,7 +72,7 @@ async fn main() {
 
     tracing::info!("Loading appinfo.vdf from {:?}", app_info_path);
     let app_info_reader = std::fs::read(app_info_path).unwrap();
-    let app_info = match vendor::vdfr::AppInfo::load(&app_info_reader) {
+    let app_info = match vdfr::parser::parse_app_info(&app_info_reader) {
         Ok(app_info) => app_info,
         Err(e) => {
             tracing::error!("💥 Failed to load appinfo.vdf: {}", e);

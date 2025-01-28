@@ -9,11 +9,14 @@ use axum::{
     Router,
 };
 use serde_json::json;
+use vdfr::Value;
 
 use crate::{
     models::{AppInfo, Pagination, User},
-    steam::{get_steam_root_path, steamid64_to_steamid, steamid64_to_usteamid},
-    vendor::vdfr::Value,
+    steam::{
+        get_app_name, get_localized_app_name, get_steam_root_path, steamid64_to_steamid,
+        steamid64_to_usteamid,
+    },
     SharedAppState,
 };
 
@@ -42,8 +45,8 @@ pub async fn get_users(State(state): State<SharedAppState>) -> impl IntoResponse
     axum::Json(wrapped_json)
 }
 
-fn transform_vdfr_to_app(app: &crate::vendor::vdfr::App) -> AppInfo {
-    let app_name = app.app_name().unwrap();
+fn transform_vdfr_to_app(app: &vdfr::App) -> AppInfo {
+    let app_name = get_app_name(app);
 
     let mut developers = Vec::new();
     let mut publishers = Vec::new();
@@ -68,7 +71,7 @@ fn transform_vdfr_to_app(app: &crate::vendor::vdfr::App) -> AppInfo {
         }
     }
 
-    let localized_name = app.localized_name();
+    let localized_name = get_localized_app_name(app);
     // get "english" name or fallback to app name
     let english_name = localized_name.get("english").unwrap_or(&app_name);
 

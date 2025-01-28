@@ -6,8 +6,6 @@ use std::{collections::HashMap, path::PathBuf};
 
 use serde::Deserialize;
 
-use crate::vendor::vdfr::parse_keyvalues;
-
 const ID64_IDENT: u64 = 76561197960265728;
 
 pub fn get_steam_root_path() -> PathBuf {
@@ -72,39 +70,35 @@ pub fn load_users_shortcuts(user_id: u64) -> HashMap<u32, SteamShortcut> {
 
     let mut shortcuts_reader = std::fs::read(shortcuts_path).unwrap();
 
-    match parse_keyvalues(&mut shortcuts_reader) {
+    match vdfr::parser::parse_keyvalues(&mut shortcuts_reader) {
         Ok(kv) => {
             let shortcuts = kv.get("shortcuts");
 
             match shortcuts {
-                Some(crate::vendor::vdfr::Value::KeyValueType(shortcuts)) => {
+                Some(vdfr::Value::KeyValueType(shortcuts)) => {
                     let mapped: HashMap<u32, SteamShortcut> = shortcuts
                         .values()
                         .filter_map(|shortcut| {
-                            if let crate::vendor::vdfr::Value::KeyValueType(shortcut) = shortcut {
+                            if let vdfr::Value::KeyValueType(shortcut) = shortcut {
                                 let id = shortcut.get("appid");
-                                if let Some(crate::vendor::vdfr::Value::Int32Type(id)) = id {
+                                if let Some(vdfr::Value::Int32Type(id)) = id {
                                     let name = shortcut.get("AppName");
                                     let actual_id = clamp_i32_to_u24(*id);
                                     match name {
-                                        Some(crate::vendor::vdfr::Value::StringType(name)) => {
-                                            Some((
-                                                actual_id,
-                                                SteamShortcut {
-                                                    id: actual_id,
-                                                    name: name.clone(),
-                                                },
-                                            ))
-                                        }
-                                        Some(crate::vendor::vdfr::Value::WideStringType(name)) => {
-                                            Some((
-                                                actual_id,
-                                                SteamShortcut {
-                                                    id: actual_id,
-                                                    name: name.clone(),
-                                                },
-                                            ))
-                                        }
+                                        Some(vdfr::Value::StringType(name)) => Some((
+                                            actual_id,
+                                            SteamShortcut {
+                                                id: actual_id,
+                                                name: name.clone(),
+                                            },
+                                        )),
+                                        Some(vdfr::Value::WideStringType(name)) => Some((
+                                            actual_id,
+                                            SteamShortcut {
+                                                id: actual_id,
+                                                name: name.clone(),
+                                            },
+                                        )),
                                         _ => None,
                                     }
                                 } else {
@@ -123,6 +117,34 @@ pub fn load_users_shortcuts(user_id: u64) -> HashMap<u32, SteamShortcut> {
         }
         Err(_) => HashMap::new(),
     }
+}
+
+pub fn get_app_name(app: &vdfr::App) -> String {
+    let name = app.get(&["appinfo", "common", "name"]);
+    match name {
+        Some(vdfr::Value::StringType(name)) => name.clone(),
+        Some(vdfr::Value::WideStringType(name)) => name.clone(),
+        _ => format!("Steam App {}", app.id),
+    }
+}
+
+pub fn get_localized_app_name(app: &vdfr::App) -> HashMap<String, String> {
+    let mut names = HashMap::new();
+    let localized = app.get(&["appinfo", "common", "name_localized"]);
+    if let Some(vdfr::Value::KeyValueType(kv)) = localized {
+        for (k, v) in kv.iter() {
+            match v {
+                vdfr::Value::StringType(v) => {
+                    names.insert(k.clone(), v.clone());
+                }
+                vdfr::Value::WideStringType(v) => {
+                    names.insert(k.clone(), v.clone());
+                }
+                _ => {}
+            }
+        }
+    }
+    names
 }
 
 pub fn steamid64_to_steamid(steamid64: u64) -> u64 {
