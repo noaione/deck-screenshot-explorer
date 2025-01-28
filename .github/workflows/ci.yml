@@ -58,7 +58,7 @@ jobs:
       - name: Build backend
         run: |
           pushd backend
-          cargo build --release --verbose --all
+          cargo build --locked --release --verbose --all
           chmod +x target/release/backend
           mkdir -p out
           cp target/release/backend out/

@@ -16,7 +16,7 @@ npm run build-only
 cd ..
 
 echo "Compiling Rust backend..."
-cargo build --release --all
+cargo build --locked --release --all
 
 chmod +x ./target/release/backend
 
